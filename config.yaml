@@ -1,0 +1,151 @@
+# Indeed Auto-Apply Bot Configuration
+# Edit these fields to customize your job search and application process
+
+search:
+  job: "full stack developer"  # Job title or keywords to search for (e.g., "python developer", "software engineer")
+  location: "remote"  # Location where you want to work (city, state, region) - leave empty for any location, or use "remote" for remote jobs
+  country: "us"  # Country code: us (default), fr, uk, de, es, it, nl, pt, pl, ro, tr, ru, cn, etc.
+  language: "us"  # Language code: us (default), fr, uk, de, es, it, nl, pt, pl, ro, tr, ru, cn, etc.
+
+camoufox:
+  user_data_dir: "user_data_dir"  # Directory to store browser session data
+
+# OpenAI Configuration for AI Matching
+openai:
+  api_key: ""  # Your OpenAI API key (get from https://platform.openai.com/api-keys)
+
+# User Profile for AI Matching (Resume Structure)
+user_profile:
+  # Personal Information
+  name: "Anderson Smith"
+  email: "andersonsmith@gmail.com"
+  location: "New York, USA"
+  
+  # Professional Summary
+  professional_summary: |
+    Results-driven Full Stack Developer with 6+ years of experience delivering high-performance web and mobile applications across diverse industries. Proficient in React, Node.js, React Native, Flutter, and blockchain technologies, with a proven track record in building scalable, secure, and user-focused solutions for e-commerce, SaaS, and enterprise platforms. Passionate about clean architecture, performance optimization, and intuitive UI/UX design. Recognized for strong collaboration, reliability, and a commitment to quality, speed, and transparency in every project.
+
+  # Key Achievements
+  key_achievements:
+    - "Successfully optimized API, increasing response time by 40%."
+    - "Drove a 25% increase in user retention through improved UI/UX."
+    - "Published 8+ cross-platform apps maintaining high compliance standards."
+    - "Implemented analytics dashboards that improved decision-making efficiency by 40%."
+    - "Reduced front-end load times by 30% with innovative techniques."
+    - "Streamlined deployment process, cutting release time by 50% through CI/CD automation."
+  
+  # Work Experience
+  work_experience:
+    - title: "Full Stack Developer"
+      company: ""
+      location: "Remote"
+      duration: "06/2022 - Present"
+      description: |
+        - Developed high-performance web applications using React, Next.js, Node.js, Laravel, and Java.
+        - Optimized API and database queries, improving response time by 40%.
+        - Built scalable server infrastructure using AWS and Firebase for enhanced performance.
+        - Improved UI/UX, leading to a 25% increase in user retention.
+        - Led code reviews and team collaboration to enhance code quality and maintainability.
+    - title: "Mobile & Blockchain & Web3 Developer"
+      company: ""
+      location: "Remote"
+      duration: "11/2020 - 05/2022"
+      description: |
+        - Developed cross-platform mobile apps using Flutter and React Native for iOS and Android.
+        - Integrated third-party APIs, Firebase, and push notifications to enhance user engagement.
+        - Published and maintained apps on the App Store and Google Play, ensuring compliance with platform guidelines.
+        - Developed and deployed smart contracts using Solidity on Ethereum and Binance Smart Chain.
+        - Built decentralized applications (dApps) integrated with Web3.js and Ethers.js.
+    - title: "Backend Developer"
+      company: ""
+      location: "Remote"
+      duration: "09/2019 - 06/2020"
+      description: |
+        - Built and maintained scalable backend systems using Java, Laravel, Node.js, and Python (Django, FastAPI).
+        - Designed and optimized MySQL, PostgreSQL, and MongoDB databases.
+        - Implemented authentication and security measures using JWT, OAuth, and Firebase.
+        - Developed automation scripts and data processing pipelines using Python.
+    - title: "Frontend Developer"
+      company: ""
+      location: "Remote"
+      duration: "03/2017 - 08/2019"
+      description: |
+        - Built high-performance web applications using React, Vue, and Next.js/Nuxt.js.
+        - Optimized front-end performance, improving load times by 30% with lazy loading and efficient state management.
+        - Integrated RESTful APIs and GraphQL for seamless data fetching.
+        - Developed reusable component libraries to maintain UI consistency across projects.
+  
+  # Education
+  education:
+    - degree: "Bachelor of Computer Science"
+      institution: "IPB University"
+      location: "Bogor, Indonesia"
+      duration: "08/2018 - 12/2021"
+      year: "2021"
+  
+  # Skills
+  technical_skills:
+    - "React"
+    - "Next.js"
+    - "Node.js"
+    - "Laravel"
+    - "Java"
+    - "AWS"
+    - "Firebase"
+    - "Python"
+    - "Django"
+    - "FastAPI"
+    - "Flutter"
+    - "React Native"
+    - "Solidity"
+    - "Web3.js"
+    - "Ethers.js"
+    - "MySQL"
+    - "PostgreSQL"
+    - "MongoDB"
+    - "GraphQL"
+    - "Vue"
+    - "Nuxt.js"
+    - "CI/CD"
+    - "Docker"
+    - "JWT"
+    - "OAuth"
+  soft_skills:
+    - "Communication"
+    - "Team Leadership"
+    - "Problem Solving"
+    - "Collaboration"
+    - "Reliability"
+    - "Commitment to quality"
+    - "UI/UX Design"
+    - "Performance Optimization"
+  
+  # Certifications
+  certifications: []
+  
+  # Languages
+  languages:
+    - language: "English"
+      proficiency: "Native"
+    - language: "Spanish"
+      proficiency: "Native"
+  
+  # Job Preferences
+  job_preferences:
+    desired_role: "Full Stack Developer"
+    preferred_locations:
+      - "remote"
+      - "United States"
+    preferred_job_types:
+      - "full-time"
+      - "contract"
+    accept_remote: true
+    salary_range: ""
+  
+  # Experience Level
+  experience_level: "senior"
+
+
+
+
+
