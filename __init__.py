@@ -25,24 +25,11 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 from camoufox.sync_api import Camoufox
 
+
 from _database import Database
 from _indeed import Indeed, REQUESTS_AVAILABLE
+from _open_ai import OpenAI_Manager
 import _utils
-
-# Initialize global database instance
-db = Database("indeed_jobs.db")
-
-# Initialize global Indeed scraper instance
-indeed = Indeed()
-
-# OpenAI imports
-try:
-    from openai import OpenAI
-
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    print("Warning: OpenAI library not installed. Install with: pip install openai")
 
 
 with open("config.yaml", "r") as f:
@@ -54,6 +41,11 @@ user_data_dir = camoufox_config.get("user_data_dir")
 search_config = config.get("search", {})
 country = search_config.get("country", "us")
 language = search_config.get("language", "us")  # Use language from search config
+openAI_api_key = config.get("openai", {}).get("api_key")
+
+db = Database("indeed_jobs.db")
+indeed = Indeed()
+openAI_manager = OpenAI_Manager(openAI_api_key)
 
 
 def collect_job_links(page, language, country):
@@ -406,136 +398,6 @@ def sync_profile_from_config() -> bool:
 # ============================================================================
 
 
-def get_openai_client(api_key: Optional[str] = None) -> Optional[Any]:
-    """Initialize and return OpenAI client."""
-    if not OPENAI_AVAILABLE:
-        return None
-
-    if not api_key:
-        # Try to get from config
-        try:
-            with open("config.yaml", "r") as f:
-                config = yaml.safe_load(f)
-                api_key = config.get("openai", {}).get("api_key")
-        except Exception:
-            pass
-
-    if not api_key:
-        return None
-
-    try:
-        return OpenAI(api_key=api_key)
-    except Exception as e:
-        print(f"Error initializing OpenAI client: {e}")
-        return None
-
-
-def extract_job_summary_with_openai(
-    job_link: str, client: Any, browser_page=None
-) -> Optional[str]:
-    if not client:
-        return None
-
-    text_content = None
-
-    try:
-        # Priority 1: Browser extraction (optional)
-        if browser_page:
-            try:
-                browser_page.goto(job_link, wait_until="load", timeout=30000)
-                time.sleep(2)
-
-                try:
-                    body_text = browser_page.query_selector("body")
-                    if body_text:
-                        text_content = body_text.inner_text()[:8000]
-                except Exception:
-                    html = browser_page.content()
-                    text_content = html[:8000]
-
-            except Exception as e:
-                print(f"  Warning: Browser failed, falling back to HTTP: {e}")
-                text_content = None
-
-        # Priority 2: HTTP extraction (default)
-        # if not text_content and REQUESTS_AVAILABLE:
-        #     try:
-        #         headers = {
-        #             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        #             "Accept": "text/html,application/xhtml+xml",
-        #         }
-
-        #         response = requests.get(job_link, headers=headers, timeout=15)
-        #         response.raise_for_status()
-
-        #         soup = BeautifulSoup(response.text, "html.parser")
-
-        #         for tag in soup(["script", "style", "meta", "link"]):
-        #             tag.decompose()
-
-        #         text_content = soup.get_text(separator=" ", strip=True)[:8000]
-
-        #     except Exception as e:
-        #         print(f"  Warning: HTTP request failed: {e}")
-        #         text_content = None
-
-        # ------------------------------------
-        # FIXED PROMPT LOGIC
-        # ------------------------------------
-        if text_content:
-            prompt = f"""
-                Extract and summarize the following job posting text.
-
-                Provide a concise summary (200–300 words) including:
-                - Job title
-                - Company name
-                - Location (city/state/remote)
-                - Job type (FT/PT/contract)
-                - Technical skills
-                - Soft skills
-                - Languages
-                - Job preferences
-                - Experience level
-                - Key responsibilities
-                - Salary if mentioned
-
-                Job posting content:
-                {text_content[:6000]}
-            """
-        else:
-            # Fallback when no page content is available
-            prompt = f"""
-            Extract and summarize the job posting from this URL:
-            URL: {job_link}
-
-            If the page content cannot be accessed, infer based on the URL structure.
-
-            Provide a concise 200–300 word summary including:
-            - Job title (if identifiable)
-            - Company name (if identifiable)
-            - Location (if identifiable)
-            - Any other inferred details
-            """
-
-        # Call OpenAI
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a job posting analyzer. Extract key information from job postings and create structured summaries.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=500,
-            temperature=0.3,
-        )
-
-        return response.choices[0].message.content.strip()
-
-    except Exception as e:
-        print(f"Error extracting job summary with OpenAI: {e}")
-        return None
 
 
 def get_embedding(
@@ -1032,7 +894,7 @@ try:
             print(f"Database initialized: {db_path}")
             
             # Initialize OpenAI client and user profile for immediate processing
-            openai_client = get_openai_client()
+            openai_client = openAI_manager.get_openai_client()
             if not openai_client:
                 print("Warning: OpenAI client not available. Jobs will be saved but not processed immediately.")
                 print("You can process them later using: python process_jobs.py --extract-summaries --match")
