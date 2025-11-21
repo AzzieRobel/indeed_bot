@@ -4,7 +4,7 @@ import random
 from typing import Dict, Any, List
 
 
-def _clean_text_block(text: str) -> str:
+def clean_text_block(text: str) -> str:
     if not text:
         return ""
     return re.sub(r"\s+", " ", text).strip()
@@ -45,9 +45,7 @@ def format_job_details_for_summary(
     return "\n".join(parts).strip()
 
 def click_and_wait(element, timeout=5):
-    """Click element and wait with randomization."""
     if element:
         element.click()
-        # Add randomization to avoid detection
         wait_time = timeout + random.uniform(-1, 1)
         time.sleep(max(0.5, wait_time))

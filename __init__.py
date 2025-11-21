@@ -37,10 +37,9 @@ with open("config.yaml", "r") as f:
 camoufox_config = config.get("camoufox", {})
 user_data_dir = camoufox_config.get("user_data_dir")
 
-# Get search config with defaults
 search_config = config.get("search", {})
 country = search_config.get("country", "us")
-language = search_config.get("language", "us")  # Use language from search config
+language = search_config.get("language", "us")
 openAI_api_key = config.get("openai", {}).get("api_key")
 
 db = Database("indeed_jobs.db")
@@ -52,54 +51,38 @@ def collect_job_links(page, language, country):
     """Extract real viewjob links from job cards by extracting job key and constructing proper URLs."""
     job_links = []
 
-    # Wait for job cards to appear on the page
     try:
-        # Wait for job title links to appear (the actual job cards are <a> tags)
         page.wait_for_selector('a.jcs-JobTitle, a[jk], a[id^="job_"]', timeout=15000)
     except Exception:
-        # If no jobs found, try alternative selectors
         try:
             page.wait_for_selector('a[class*="JobTitle"]', timeout=5000)
         except Exception:
             pass
 
-    # Wait a bit longer for cards to fully load (especially important for subsequent pages)
     time.sleep(2 + random.uniform(0.5, 1))
 
-    # Select job cards - they are <a> tags with specific attributes
-    # Each job card is an <a> tag with:
-    # - class="jcs-JobTitle ..."
-    # - data-jk attribute (job key) - THIS IS WHAT WE NEED
-    # - id="job_<job_key>"
     job_cards = []
 
-    # Strategy 1: Select by class jcs-JobTitle (most reliable)
     job_cards = page.query_selector_all("a.jcs-JobTitle")
 
-    # Strategy 2: Select by data-jk attribute
     if not job_cards:
         job_cards = page.query_selector_all("a[jk]")
 
-    # Strategy 3: Select by id pattern (id starts with "job_")
     if not job_cards:
         job_cards = page.query_selector_all('a[id^="job_"]')
 
-    # Get the domain for constructing URLs
     domain = indeed.get_indeed_domain(country)
 
     print(f"Found {len(job_cards)} job cards (expected ~15 per page)")
 
-    # Extract job keys and construct real viewjob URLs
     for idx, card in enumerate(job_cards):
         try:
-            # Extract job key from data-jk attribute (most reliable)
             job_key = None
             try:
                 job_key = card.get_attribute("jk")
             except Exception:
                 pass
 
-            # Fallback: Extract from id attribute (id="job_<job_key>")
             if not job_key:
                 try:
                     card_id = card.get_attribute("id")
@@ -108,7 +91,6 @@ def collect_job_links(page, language, country):
                 except Exception:
                     pass
 
-            # Fallback: Extract from href if it contains jk=
             if not job_key:
                 try:
                     href = card.get_attribute("href")
@@ -119,9 +101,7 @@ def collect_job_links(page, language, country):
                 except Exception:
                     pass
 
-            # Construct the real viewjob URL
             if job_key:
-                # Real job link format: https://www.indeed.com/viewjob?jk=<job_key>&from=serp&vjs=3
                 viewjob_url = f"https://{domain}/viewjob?jk={job_key}&from=serp&vjs=3"
                 job_links.append(viewjob_url)
                 print(f"  [Card {idx+1}/{len(job_cards)}] Link: {viewjob_url[:80]}...")
@@ -130,138 +110,10 @@ def collect_job_links(page, language, country):
                     f"  [Card {idx+1}/{len(job_cards)}] Warning: Could not extract job key"
                 )
         except Exception as e:
-            # Skip cards that cause errors
             print(f"  [Card {idx+1}] Error: {e}")
             continue
 
     return job_links
-
-
-# def apply_to_job(browser, job_url, language, logger):
-#     """Open a new tab, apply to the job, log the result, and close the tab."""
-#     page = browser.new_page()
-#     try:
-#         page.goto(job_url)
-#         page.wait_for_load_state("domcontentloaded")
-#         time.sleep(3)
-#         # Try to find the "Apply now" button using robust, language-agnostic selectors
-#         apply_btn = None
-#         for _ in range(20):
-#             # 1. Try button with "Apply now" text
-#             apply_btn = page.query_selector(
-#                 'button:visible:has-text("Apply now")')
-#             if not apply_btn:
-#                 apply_btn = page.query_selector(
-#                     'button:visible:has-text("Apply Now")')
-#             if not apply_btn:
-#                 apply_btn = page.query_selector(
-#                     'a:visible:has-text("Apply now")')
-#             # 2. Try button with a span with the unique apply class (often css-1ebo7dz)
-#             if not apply_btn:
-#                 apply_btn = page.query_selector(
-#                     'button:has(span[class*="css-1ebo7dz"])')
-#             # 3. Fallback: first visible button with a span containing "Postuler" or "Apply"
-#             if not apply_btn:
-#                 apply_btn = page.query_selector(
-#                     'button:visible:has-text("Postuler")')
-#             if not apply_btn:
-#                 apply_btn = page.query_selector(
-#                     'button:visible:has-text("Apply")')
-#             # 4. Fallback: first visible button on the page (avoid close/cancel if possible)
-#             if not apply_btn:
-#                 btns = page.query_selector_all('button:visible')
-#                 for btn in btns:
-#                     label = (btn.get_attribute("aria-label") or "").lower()
-#                     text = (btn.inner_text() or "").lower()
-#                     if "close" in label or "cancel" in label or "fermer" in label or "annuler" in label:
-#                         continue
-#                     if "apply" in text or "postuler" in text or btn.is_visible():
-#                         apply_btn = btn
-#                         break
-#             if apply_btn:
-#                 break
-#             time.sleep(0.5)
-#         if apply_btn:
-#             click_and_wait(apply_btn, 5)
-#         else:
-#             logger.warning(
-#                 f"No Apply now button found for {job_url}")
-#             page.close()
-#             return False
-
-#         # add timeout for the wizard loop
-#         start_time = time.time()
-#         while True:
-#             if time.time() - start_time > 40:
-#                 logger.warning(
-#                     f"Timeout applying to {job_url}, closing tab and moving to next.")
-#                 break
-#             current_url = page.url
-#             # Resume step: select resume card if present
-#             resume_card = page.query_selector(
-#                 '[data-testid="FileResumeCardHeader-title"]')
-#             if resume_card:
-#                 # Click the resume card (or its parent if needed)
-#                 try:
-#                     resume_card.click()
-#                 except Exception:
-#                     parent = resume_card.evaluate_handle(
-#                         'node => node.parentElement')
-#                     if parent:
-#                         parent.click()
-#                 time.sleep(1)
-#                 continuer_btn = None
-#                 btns = page.query_selector_all('button:visible')
-#                 for btn in btns:
-#                     text = (btn.inner_text() or "").lower()
-#                     if "continuer" in text or "continue" in text:
-#                         continuer_btn = btn
-#                         break
-#                 if continuer_btn:
-#                     click_and_wait(continuer_btn, 3)
-#                     continue  # go to next step
-
-#             # try to find a submit button ( dynamic text) idk if it's working
-#             submit_btn = None
-#             btns = page.query_selector_all('button:visible')
-#             for btn in btns:
-#                 text = (btn.inner_text() or "").lower()
-#                 if (
-#                     "déposer ma candidature" in text or
-#                     "soumettre" in text or
-#                     "submit" in text or
-#                     "apply" in text or
-#                     "bewerben" in text or  # German
-#                     "postular" in text     # Spanish
-#                 ):
-#                     submit_btn = btn
-#                     break
-#             # fallback: last visible button (often the submit)
-#             if not submit_btn and btns:
-#                 submit_btn = btns[-1]
-#             if submit_btn:
-#                 click_and_wait(submit_btn, 3)
-#                 logger.info(f"Applied successfully to {job_url}")
-#                 break
-
-#             # fallback: try to find a visible and enabled button to continue (other stesp)
-#             btn = page.query_selector(
-#                 'button[type="button"]:not([aria-disabled="true"]), button[type="submit"]:not([aria-disabled="true"])')
-#             if btn:
-#                 click_and_wait(btn, 3)
-#                 if "confirmation" in page.url or "submitted" in page.url:
-#                     logger.info(f"Applied successfully to {job_url}")
-#                     break
-#             else:
-#                 logger.warning(
-#                     f"No continue/submit button found at {current_url}")
-#                 break
-#         page.close()
-#         return True
-#     except Exception as e:
-#         logger.error(f"Error applying to {job_url}: {e}")
-#         page.close()
-#         return False
 
 
 def process_job_for_matching(
@@ -280,10 +132,8 @@ def process_job_for_matching(
         return None
 
     try:
-        # Normalize job link
         normalized_link = indeed.normalize_job_link(job_link)
 
-        # Extract job_key
         job_key = None
         if "jk=" in normalized_link:
             try:
@@ -293,7 +143,6 @@ def process_job_for_matching(
             except Exception:
                 pass
 
-        # Scrape job details either from the currently open detail panel or via HTTP
         job_details = None
         if browser_page and job_key:
             job_details = indeed.scrape_job_details_from_dom(
@@ -316,7 +165,6 @@ def process_job_for_matching(
             if job_embedding_list:
                 job_embedding_json = json.dumps(job_embedding_list)
 
-        # Match the job against the user profile
         score, reason = calculate_match_score(
             job_summary, job_embedding_list, user_profile, user_profile_embedding
         )
@@ -398,52 +246,7 @@ def sync_profile_from_config() -> bool:
 # ============================================================================
 
 
-
-
-def get_embedding(
-    text: str,
-    client: Any,
-    model: str = "text-embedding-3-small",
-    max_length: int = 8000,
-    retries: int = 2,
-) -> Optional[List[float]]:
-    """Generate an embedding vector for text using OpenAI with safety checks and retries."""
-
-    if not client:
-        print("Error: OpenAI client missing in get_embedding()")
-        return None
-
-    if not text or not isinstance(text, str):
-        print("Error: Invalid or empty text passed to get_embedding()")
-        return None
-
-    # 1️⃣ Sanitize text (avoid sending extremely long text)
-    clean_text = text.strip()
-    if len(clean_text) > max_length:
-        clean_text = clean_text[:max_length]
-
-    # 2️⃣ Retry logic
-    for attempt in range(retries + 1):
-        try:
-            response = client.embeddings.create(model=model, input=clean_text)
-
-            # 3️⃣ Validate response
-            if not response or not response.data or len(response.data) == 0:
-                print("Error: Empty embedding response from OpenAI")
-                continue
-
-            # 4️⃣ Return embedding
-            return response.data[0].embedding
-
-        except Exception as e:
-            print(f"[Attempt {attempt+1}] Error getting embedding: {e}")
-
-    print("Embedding failed after retries.")
-    return None
-
-
 def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
-    """Calculate cosine similarity between two vectors."""
     if not vec1 or not vec2 or len(vec1) != len(vec2):
         return 0.0
 
@@ -473,17 +276,13 @@ def keyword_score(job_summary: str, user_profile: Dict[str, Any]) -> Dict[str, f
     summary_lower = job_summary.lower()
     scores = {"relevance": 0.0, "location": 0.0, "role_type": 0.0, "experience": 0.0}
 
-    # Relevance scoring: match desired skills/technologies
-    # Combine technical and soft skills
     technical_skills = user_profile.get("technical_skills", [])
     soft_skills = user_profile.get("soft_skills", [])
     desired_skills = technical_skills + soft_skills
 
-    # Also check work experience titles and descriptions
     work_experience = user_profile.get("work_experience", [])
     for exp in work_experience:
         if exp.get("title"):
-            # Extract skills from job titles (e.g., "Python Developer" -> "Python")
             title_words = exp["title"].split()
             desired_skills.extend([w for w in title_words if len(w) > 3])
 
@@ -493,7 +292,6 @@ def keyword_score(job_summary: str, user_profile: Dict[str, Any]) -> Dict[str, f
         )
         scores["relevance"] = min(1.0, matched_skills / max(len(desired_skills), 1))
 
-    # Location scoring
     job_prefs = user_profile.get("job_preferences", {})
     preferred_locations = job_prefs.get("preferred_locations", [])
     if preferred_locations:
@@ -506,17 +304,15 @@ def keyword_score(job_summary: str, user_profile: Dict[str, Any]) -> Dict[str, f
             if job_prefs.get("accept_remote", True):
                 scores["location"] = 0.8
         else:
-            scores["location"] = 0.3  # Partial score for other locations
+            scores["location"] = 0.3
 
-    # Role type scoring
     preferred_types = job_prefs.get("preferred_job_types", ["full-time"])
     job_type_match = any(jt.lower() in summary_lower for jt in preferred_types)
     if job_type_match:
         scores["role_type"] = 1.0
     else:
-        scores["role_type"] = 0.5  # Partial score
+        scores["role_type"] = 0.5
 
-    # Experience level scoring
     user_experience = user_profile.get("experience_level", "mid")
     experience_keywords = {
         "entry": ["entry", "junior", "intern", "0-2 years", "0-1 years"],
@@ -530,7 +326,6 @@ def keyword_score(job_summary: str, user_profile: Dict[str, Any]) -> Dict[str, f
         if experience_match:
             scores["experience"] = 1.0
         else:
-            # Check for adjacent levels
             if user_experience == "mid":
                 if any(exp in summary_lower for exp in experience_keywords["entry"]):
                     scores["experience"] = 0.7
@@ -557,22 +352,19 @@ def calculate_match_score(
     print(f"job summary : ", job_summary)
     if weights is None:
         weights = {
-            "embedding": 0.4,  # 40% weight on semantic similarity
-            "relevance": 0.3,  # 30% weight on skill relevance
-            "location": 0.15,  # 15% weight on location
-            "role_type": 0.1,  # 10% weight on job type
-            "experience": 0.05,  # 5% weight on experience level
+            "embedding": 0.4,
+            "relevance": 0.3,
+            "location": 0.15,
+            "role_type": 0.1,
+            "experience": 0.05,
         }
 
-    # Embedding similarity score
     embedding_score = 0.0
     if job_embedding and user_profile_embedding:
         embedding_score = cosine_similarity(job_embedding, user_profile_embedding)
 
-    # Keyword scores
     keyword_scores = keyword_score(job_summary, user_profile)
 
-    # Weighted combination
     final_score = (
         embedding_score * weights["embedding"]
         + keyword_scores["relevance"] * weights["relevance"]
@@ -581,7 +373,6 @@ def calculate_match_score(
         + keyword_scores["experience"] * weights["experience"]
     )
 
-    # Generate reason
     reasons = []
     if embedding_score > 0.7:
         reasons.append("high semantic similarity")
@@ -669,144 +460,94 @@ def profile_to_text(profile: Dict[str, Any]) -> str:
     return " ".join(filter(None, lines))
 
 
-def match_jobs(
-    user_profile: Dict[str, Any],
-    openai_client: Optional[Any] = None,
-    min_score: float = 0.6,
-    limit: Optional[int] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Workflow:
-        1. Ensure each stored job has scraped job details + summary text.
-        2. Match the scraped content with the provided user profile.
-        3. Save updated data to the database and return matches above min_score.
-    """
-    jobs = db.get_jobs_from_db(limit)
-    matched_jobs: List[Dict[str, Any]] = []
+# def match_jobs(
+#     user_profile: Dict[str, Any],
+#     openai_client: Optional[Any] = None,
+#     min_score: float = 0.6,
+#     limit: Optional[int] = None,
+# ) -> List[Dict[str, Any]]:
+#     """
+#     Workflow:
+#         1. Ensure each stored job has scraped job details + summary text.
+#         2. Match the scraped content with the provided user profile.
+#         3. Save updated data to the database and return matches above min_score.
+#     """
+#     jobs = db.get_jobs_from_db(limit)
+#     matched_jobs: List[Dict[str, Any]] = []
 
-    profile_text = profile_to_text(user_profile)
-    user_profile_embedding = None
-    if openai_client and profile_text:
-        user_profile_embedding = get_embedding(profile_text, openai_client)
+#     profile_text = profile_to_text(user_profile)
+#     user_profile_embedding = None
+#     if openai_client and profile_text:
+#         user_profile_embedding = get_embedding(profile_text, openai_client)
 
-    for (
-        job_id,
-        job_link,
-        stored_summary,
-        stored_details_json,
-        stored_embedding_json,
-    ) in jobs:
-        job_details = None
-        if stored_details_json:
-            try:
-                job_details = json.loads(stored_details_json)
-            except Exception:
-                job_details = None
+#     for (
+#         job_id,
+#         job_link,
+#         stored_summary,
+#         stored_details_json,
+#         stored_embedding_json,
+#     ) in jobs:
+#         job_details = None
+#         if stored_details_json:
+#             try:
+#                 job_details = json.loads(stored_details_json)
+#             except Exception:
+#                 job_details = None
 
-        job_summary = stored_summary or ""
-        if not job_details or not job_summary:
-            scraped = indeed.scrape_job_details_from_link(job_link, REQUESTS_AVAILABLE)
-            if scraped:
-                job_details = scraped
-                job_summary = _utils.format_job_details_for_summary(scraped)
+#         job_summary = stored_summary or ""
+#         if not job_details or not job_summary:
+#             scraped = indeed.scrape_job_details_from_link(job_link, REQUESTS_AVAILABLE)
+#             if scraped:
+#                 job_details = scraped
+#                 job_summary = _utils.format_job_details_for_summary(scraped)
 
-        if not job_summary:
-            job_summary = f"Job posting could not be scraped for {job_link}"
+#         if not job_summary:
+#             job_summary = f"Job posting could not be scraped for {job_link}"
 
-        job_embedding = None
-        if stored_embedding_json:
-            try:
-                job_embedding = json.loads(stored_embedding_json)
-            except Exception:
-                job_embedding = None
+#         job_embedding = None
+#         if stored_embedding_json:
+#             try:
+#                 job_embedding = json.loads(stored_embedding_json)
+#             except Exception:
+#                 job_embedding = None
 
-        if not job_embedding and openai_client and job_summary:
-            job_embedding = get_embedding(job_summary, openai_client)
+#         if not job_embedding and openai_client and job_summary:
+#             job_embedding = get_embedding(job_summary, openai_client)
 
-        score, reason = calculate_match_score(
-            job_summary, job_embedding, user_profile, user_profile_embedding
-        )
+#         score, reason = calculate_match_score(
+#             job_summary, job_embedding, user_profile, user_profile_embedding
+#         )
 
-        matched = score >= min_score
-        matched_at_value = datetime.now() if matched else None
-        application_status = "matched" if matched else "not_matched"
+#         matched = score >= min_score
+#         matched_at_value = datetime.now() if matched else None
+#         application_status = "matched" if matched else "not_matched"
 
-        db.update_job_in_db(
-            job_id,
-            job_summary,
-            job_details,
-            job_embedding,
-            score,
-            reason,
-            matched_at_value,
-            application_status,
-            stored_embedding_json
-        )
+#         db.update_job_in_db(
+#             job_id,
+#             job_summary,
+#             job_details,
+#             job_embedding,
+#             score,
+#             reason,
+#             matched_at_value,
+#             application_status,
+#             stored_embedding_json
+#         )
 
-        if matched:
-            matched_jobs.append(
-                {
-                    "id": job_id,
-                    "job_link": job_link,
-                    "job_summary": job_summary,
-                    "score": score,
-                    "reason": reason,
-                }
-            )
-    return matched_jobs
-
-
-# ============================================================================
-# Dashboard/Report Functions
-# ============================================================================
-
-
-def print_dashboard():
-    """Print formatted dashboard to console."""
-    stats = db.fetch_dashboard_stats_from_db()
-
-    print("\n" + "=" * 60)
-    print("JOB MATCHING DASHBOARD")
-    print("=" * 60)
-    print(f"\n📊 Overview:")
-    print(f"   Jobs Fetched:        {stats['jobs_fetched']}")
-    print(f"   Jobs with Summary:   {stats['jobs_with_summary']}")
-    print(f"   Jobs Matched:        {stats['jobs_matched']}")
-    print(f"   Jobs Applied:        {stats['jobs_applied']}")
-    print(f"   Avg Match Score:     {stats['average_match_score']}")
-
-    print(f"\n📈 Status Breakdown:")
-    for status, count in stats["status_breakdown"].items():
-        print(f"   {status}: {count}")
-
-    if stats["top_matched_jobs"]:
-        print(f"\n🏆 Top Matched Jobs:")
-        for i, job in enumerate(stats["top_matched_jobs"][:5], 1):
-            print(f"   {i}. Score: {job['score']:.2f} | Status: {job['status']}")
-            print(f"      Reason: {job['reason']}")
-            print(f"      Link: {job['job_link'][:80]}...")
-
-    print("\n" + "=" * 60 + "\n")
-
-
-def save_dashboard_json(
-    output_file: Optional[str] = None
-):
-    """Save dashboard as JSON file."""
-    if not output_file:
-        output_file = f"dashboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-
-    stats = db.fetch_dashboard_stats_from_db()
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(stats, f, indent=2, ensure_ascii=False)
-
-    print(f"Dashboard saved to: {output_file}")
-    return output_file
+#         if matched:
+#             matched_jobs.append(
+#                 {
+#                     "id": job_id,
+#                     "job_link": job_link,
+#                     "job_summary": job_summary,
+#                     "score": score,
+#                     "reason": reason,
+#                 }
+#             )
+#     return matched_jobs
 
 
 def check_login_status(page):
-    """Check if user is logged in by checking for PPID cookie."""
     try:
         cookies = page.context.cookies()
         ppid_cookie = next(
@@ -819,7 +560,6 @@ def check_login_status(page):
 
 
 def wait_for_manual_login(page, language, max_wait=300):
-    """Wait for user to manually log in, checking periodically."""
     print("Token not found, please log in to Indeed first.")
     print("Redirecting to login page...")
     print("You need to restart the bot after logging in.")
@@ -829,7 +569,6 @@ def wait_for_manual_login(page, language, max_wait=300):
         page.goto(f"https://secure.indeed.com/auth?hl={language}")
         page.wait_for_load_state("domcontentloaded")
 
-        # Check every 5 seconds if user has logged in
         start_time = time.time()
         while time.time() - start_time < max_wait:
             if check_login_status(page):
@@ -850,25 +589,18 @@ def wait_for_manual_login(page, language, max_wait=300):
         return False
 
 
-# Global browser reference for cleanup
 browser_instance = None
 shutdown_flag = False
 
 
 def signal_handler(sig, frame):
-    """Handle Ctrl+C gracefully."""
     global shutdown_flag
     shutdown_flag = True
     print("\n\nShutting down gracefully...")
     sys.exit(0)
 
 
-# Register signal handler for graceful shutdown
 signal.signal(signal.SIGINT, signal_handler)
-
-# No, this function does not need to get job links unless its role is to scrape and process jobs.
-# If the purpose is just to initialize the browser and environment, the section gathering job links and processing them could be refactored out.
-# Here is a version of the selection that does NOT collect job links or process them, but simply prepares the environment and shows what you'd do if you simply wanted to "set up":
 
 try:
     with Camoufox(user_data_dir=user_data_dir, persistent_context=True) as browser:
@@ -876,12 +608,10 @@ try:
         page = browser.new_page()
         
         try:
-            # Get correct Indeed domain based on country
             indeed_domain = indeed.get_indeed_domain(country)
             page.goto(f"https://{indeed_domain}")
             page.wait_for_load_state("domcontentloaded")
             
-            # Check if logged in
             if not check_login_status(page):
                 wait_for_manual_login(page, language, country)
                 page.close()
@@ -889,11 +619,9 @@ try:
             
             print("Token found, proceeding with job search...")
             
-            # Initialize database
             db_path = db.init_database()
             print(f"Database initialized: {db_path}")
             
-            # Initialize OpenAI client and user profile for immediate processing
             openai_client = openAI_manager.get_openai_client()
             if not openai_client:
                 print("Warning: OpenAI client not available. Jobs will be saved but not processed immediately.")
@@ -901,7 +629,6 @@ try:
                 user_profile = None
                 user_profile_embedding = None
             else:
-                # Load user profile
                 user_profile = db.load_user_profile()
                 if not user_profile:
                     try:
@@ -914,7 +641,6 @@ try:
                         print(f"Warning: Could not load user profile: {e}")
                         user_profile = None
                 
-                # Generate user profile embedding once
                 user_profile_embedding = None
                 if user_profile and openai_client:
                     profile_parts = []
@@ -940,7 +666,7 @@ try:
                     profile_text = " ".join(profile_parts)
                     if profile_text:
                         print("Generating user profile embedding...")
-                        user_profile_embedding = get_embedding(profile_text, openai_client)
+                        user_profile_embedding = openAI_manager.get_embedding(profile_text, openai_client)
                         print("User profile embedding ready.")
                 
                 if user_profile:
@@ -948,29 +674,22 @@ try:
                 else:
                     print("Warning: No user profile found. Jobs will be saved but not matched.")
             
-            # Get search parameters - only job and location are used
             job = search_config.get("job", "")
             location = search_config.get("location", "")
             
-            # Validate required fields
             if not job:
                 print("Error: 'job' field is required in config.yaml")
                 sys.exit(1)
             
-            # Build Indeed search URL
-            # Use helper function to get correct domain
             base_domain = indeed.get_indeed_domain(country)
             
-            # Build query parameters - only job and location
             params = {
                 "q": job
             }
             
-            # Add location if specified (including "remote")
             if location:
                 params["l"] = location
             
-            # Encode parameters
             query_string = urllib.parse.urlencode(params)
             base_url = f"https://{base_domain}/jobs?{query_string}"
             
@@ -982,11 +701,10 @@ try:
             print(f"  Base URL: {base_url}")
             print()
 
-            # Collect all job links - scrape all pages until no more jobs found
-            start_index = 0  # Start at page 0
-            empty_pages_count = 0  # Track consecutive empty pages
-            max_empty_pages = 2  # Stop after 2 consecutive empty pages
-            max_pages = 1000  # Safety limit (1000 pages = 10,000 jobs max)
+            start_index = 0
+            empty_pages_count = 0
+            max_empty_pages = 2
+            max_pages = 1000
             
             print("Starting to process jobs with AI...")
             print("Each job will be: normalized → extract summary → match → save if matched")
@@ -997,9 +715,8 @@ try:
                 if shutdown_flag:
                     break
                 
-                # Build URL with start parameter (skip start=0 for first page)
                 if start_index == 0:
-                    url = base_url  # First page has no start parameter
+                    url = base_url
                 else:
                     separator = "&" if "?" in base_url else "?"
                     url = f"{base_url}{separator}start={start_index}"
@@ -1007,45 +724,34 @@ try:
                 
                 try:
                     print(f"[Page {page_num}] Visiting URL: {url}")
-                    # Use load state instead of networkidle for better reliability
                     page.goto(url, wait_until="load", timeout=60000)
                     
-                    # Wait for Cloudflare to pass (if present)
                     print("Waiting for page to fully load...")
                     try:
-                        # Wait for Cloudflare challenge to complete or job cards to appear
                         page.wait_for_selector('a.jcs-JobTitle, a[data-jk], div#jobsearch', timeout=30000, state="visible")
                     except Exception:
-                        # If Cloudflare is present, wait a bit longer
                         print("Cloudflare protection detected, waiting for manual interaction if needed...")
                         time.sleep(5)
                     
-                    # Additional wait for dynamic content (especially important for page 2+)
                     wait_time = 6 + random.uniform(2, 4)
                     time.sleep(wait_time)
                     
-                    # Wait for job listings to appear (job cards are <a> tags)
-                    # This is critical for subsequent pages
                     try:
                         page.wait_for_selector('a.jcs-JobTitle, a[data-jk], a[id^="job_"]', timeout=15000)
                         print("Job cards detected on page")
                     except Exception:
                         print("Warning: Job listings may not have loaded yet, trying anyway...")
-                        # Wait a bit more and try again
                         time.sleep(3)
 
                     try:
-                        # Debug: Check current page URL
                         current_url = page.url
                         print(f"[Page {page_num}] Current page URL: {current_url[:100]}...")
                         
                         job_links = collect_job_links(page, language, country)
                         
                         if job_links:
-                            # Found jobs on this page
-                            empty_pages_count = 0  # Reset empty pages counter
+                            empty_pages_count = 0
                             
-                            # Process each job immediately: extract summary, match, and save if matched
                             matched_count = 0
                             skipped_count = 0
                             error_count = 0
@@ -1056,7 +762,6 @@ try:
 
                                 print(openai_client, user_profile)
                                 if openai_client and user_profile:
-                                    # Process immediately: extract summary, match, save if matched
                                     matched = process_and_save_job_immediately(
                                         link, openai_client, user_profile,
                                         user_profile_embedding, page, job, location, country, language
@@ -1068,7 +773,6 @@ try:
                                         skipped_count += 1
                                         print(f"    ✗ Not matched (score < 0.6)")
                                 else:
-                                    # Fallback: just save link (no AI processing)
                                     try:
                                         job_key = None
                                         if 'jk=' in link:
@@ -1084,20 +788,16 @@ try:
                                         error_count += 1
                                         print(f"    ✗ Error: {e}")
                                 
-                                # Rate limiting for OpenAI API
                                 if openai_client:
                                     time.sleep(1)
                             
                             total_matched = db.get_job_count()
                             print(f"[Page {page_num}] Matched: {matched_count}, Skipped: {skipped_count}, Errors: {error_count} (Total matched in DB: {total_matched})")
                         else:
-                            # No jobs found on this page - debug why
                             empty_pages_count += 1
                             print(f"[Page {page_num}] No job links found on this page.")
                             
-                            # Check if there are any job cards at all
                             try:
-                                # Try multiple selectors to see what's on the page
                                 job_cards_count_1 = len(page.query_selector_all('a.jcs-JobTitle'))
                                 job_cards_count_2 = len(page.query_selector_all('a[data-jk]'))
                                 job_cards_count_3 = len(page.query_selector_all('a[id^="job_"]'))
@@ -1107,13 +807,12 @@ try:
                                 
                                 if total_cards == 0:
                                     print(f"[Page {page_num}] No job cards found - likely reached the end of results.")
-                                    empty_pages_count = max_empty_pages  # Force stop
+                                    empty_pages_count = max_empty_pages
                                 else:
                                     print(f"[Page {page_num}] Found {total_cards} job cards but couldn't extract links - may need more wait time")
                             except Exception as e:
                                 print(f"  Debug error checking cards: {e}")
                             
-                            # Stop if we've hit too many consecutive empty pages
                             if empty_pages_count >= max_empty_pages:
                                 print(f"\nReached end of results: {max_empty_pages} consecutive pages with no jobs found.")
                                 print("Stopping scrape.")
@@ -1126,10 +825,8 @@ try:
                             print("Too many errors, stopping scrape.")
                             break
                     
-                    # Increment to next page (start parameter increases by 10)
                     start_index += 10
                     
-                    # Randomized delay between pages
                     delay = 4 + random.uniform(1, 3)
                     time.sleep(delay)
                     
@@ -1143,7 +840,7 @@ try:
                     if empty_pages_count >= max_empty_pages:
                         print("Too many errors, stopping scrape.")
                         break
-                    start_index += 10  # Continue to next page even on error
+                    start_index += 10
                     continue
 
             if not shutdown_flag:

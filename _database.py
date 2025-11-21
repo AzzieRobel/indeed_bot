@@ -3,7 +3,6 @@ import json
 import sqlite3
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-import atexit
 
 
 class Database:
@@ -12,10 +11,8 @@ class Database:
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
-        # atexit.register(self.close)
 
     def init_database(self):
-        # Create jobs table to store job links and all metadata
         self.cursor.execute(
             """CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,9 +36,7 @@ class Database:
             )"""
         )
 
-        # Migrate existing databases: Add missing columns if they don't exist
         try:
-            # Check if application_status column exists
             self.cursor.execute("PRAGMA table_info(jobs)")
             columns = [col[1] for col in self.cursor.fetchall()]
 
@@ -82,23 +77,19 @@ class Database:
             self.conn.commit()
         except Exception as e:
             print(f"Migration note: {e}")
-            # Continue anyway - columns might already exist
 
-        # Create index on job_link for faster lookups
         self.cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_job_link ON jobs(job_link)
         """
         )
 
-        # Create index on job_key if exists
         self.cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_job_key ON jobs(job_key)
         """
         )
 
-        # Create index on application_status for filtering
         try:
             self.cursor.execute(
                 """
@@ -106,17 +97,14 @@ class Database:
             """
             )
         except Exception as e:
-            # Index might fail if column doesn't exist yet, but we already handled migration above
             pass
 
-        # Create index on match_score for sorting
         self.cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_match_score ON jobs(match_score)
         """
         )
 
-        # Create user_profile table to store resume data
         self.cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_profile (
@@ -138,11 +126,10 @@ class Database:
         """
         )
 
-        # Migrate existing database: add new columns if they don't exist
         try:
             self.cursor.execute("ALTER TABLE jobs ADD COLUMN job_summary TEXT")
         except sqlite3.OperationalError:
-            pass  # Column already exists
+            pass
 
         try:
             self.cursor.execute("ALTER TABLE jobs ADD COLUMN job_details TEXT")
@@ -207,7 +194,6 @@ class Database:
         language=None,
     ):
         try:
-            # Extract job_key from link if not provided
             if not job_key and "jk=" in job_link:
                 try:
                     match = re.search(r"jk=([a-zA-Z0-9]+)", job_link)
@@ -237,30 +223,26 @@ class Database:
             self.conn.commit()
             return (
                 self.cursor.rowcount > 0
-            )  # True if inserted, False if already existed
+            )
         except Exception as e:
             self.conn.rollback()
             raise e
 
     def save_user_profile(self, user_profile: Dict[str, Any]) -> bool:
         try:
-            # Convert complex fields to JSON strings
             work_experience_json = json.dumps(user_profile.get("work_experience", []))
             education_json = json.dumps(user_profile.get("education", []))
             certifications_json = json.dumps(user_profile.get("certifications", []))
             languages_json = json.dumps(user_profile.get("languages", []))
             job_preferences_json = json.dumps(user_profile.get("job_preferences", {}))
 
-            # Convert lists to comma-separated strings for easier querying
             technical_skills_str = ", ".join(user_profile.get("technical_skills", []))
             soft_skills_str = ", ".join(user_profile.get("soft_skills", []))
 
-            # Check if profile already exists
             self.cursor.execute("SELECT id FROM user_profile LIMIT 1")
             existing = self.cursor.fetchone()
 
             if existing:
-                # Update existing profile
                 self.cursor.execute(
                     """
                     UPDATE user_profile
@@ -288,7 +270,6 @@ class Database:
                     ),
                 )
             else:
-                # Insert new profile
                 self.cursor.execute(
                     """
                     INSERT INTO user_profile
@@ -336,7 +317,6 @@ class Database:
             if not row:
                 return None
 
-            # Reconstruct profile dictionary
             profile = {
                 "name": row[1],
                 "location": row[2],
@@ -472,7 +452,6 @@ class Database:
         self.conn.commit()
 
     def save_matched_job_to_db(self, job_data: Dict[str, Any]) -> bool:
-        """Save a matched job to the database from a job_data dictionary."""
         try:
             self._save_matched_job_to_db(
                 normalized_link=job_data.get("normalized_link", ""),
@@ -549,25 +528,20 @@ class Database:
     def fetch_dashboard_stats_from_db(self) -> Dict[str, Any]:
         stats = {}
 
-        # Total jobs fetched
         self.cursor.execute("SELECT COUNT(*) FROM jobs")
         stats["jobs_fetched"] = self.cursor.fetchone()[0]
 
-        # Jobs with summaries
         self.cursor.execute("SELECT COUNT(*) FROM jobs WHERE job_summary IS NOT NULL")
         stats["jobs_with_summary"] = self.cursor.fetchone()[0]
 
-        # Jobs matched (score >= 0.6)
         self.cursor.execute("SELECT COUNT(*) FROM jobs WHERE match_score >= 0.6")
         stats["jobs_matched"] = self.cursor.fetchone()[0]
 
-        # Jobs applied
         self.cursor.execute(
             "SELECT COUNT(*) FROM jobs WHERE application_status = 'applied'"
         )
         stats["jobs_applied"] = self.cursor.fetchone()[0]
 
-        # Match breakdown by status
         self.cursor.execute(
             """
             SELECT application_status, COUNT(*) 
@@ -577,7 +551,6 @@ class Database:
         )
         stats["status_breakdown"] = dict(self.cursor.fetchall())
 
-        # Top matched jobs
         self.cursor.execute(
             """
             SELECT job_link, match_score, match_reason, application_status
@@ -592,7 +565,6 @@ class Database:
             for row in self.cursor.fetchall()
         ]
 
-        # Average match score
         self.cursor.execute(
             "SELECT AVG(match_score) FROM jobs WHERE match_score IS NOT NULL"
         )

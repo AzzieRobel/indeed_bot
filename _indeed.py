@@ -6,7 +6,6 @@ from typing import Dict, Any, Optional, List
 
 import _utils
 
-# HTTP requests for fetching job pages (no browser needed)
 try:
     from bs4 import BeautifulSoup
     import requests
@@ -52,20 +51,16 @@ class Indeed:
             return job_link
 
         try:
-            # Parse the URL
             parsed = urllib.parse.urlparse(job_link)
 
-            # Extract domain (e.g., jp.indeed.com, www.indeed.com) - preserve original domain
             domain = parsed.netloc
 
-            # Extract jk parameter from query string
             query_params = urllib.parse.parse_qs(parsed.query)
             jk_value = query_params.get("jk", [None])[0]
 
             if not jk_value:
-                return job_link  # Can't convert, return as-is
+                return job_link
 
-            # If already in correct viewjob format with from=serp&vjs=3, return as-is
             if (
                 "/viewjob" in job_link
                 and "from=serp" in job_link
@@ -89,7 +84,6 @@ class Indeed:
         html_content = None
         errors: List[str] = []
 
-        # Primary path: lightweight HTTP request
         if REQUESTS_AVAILABLE:
             for attempt in range(max_retries):
                 try:
@@ -104,7 +98,6 @@ class Indeed:
                     errors.append(str(exc))
                     time.sleep(1 + attempt)
 
-        # Fallback: use the provided browser page (if available)
         if not html_content and browser_page is not None:
             try:
                 browser_page.goto(job_link, wait_until="load", timeout=45000)
@@ -132,7 +125,7 @@ class Indeed:
                 if element:
                     text = element.get_text(" ", strip=True)
                     if text:
-                        return _utils._clean_text_block(text)
+                        return _utils.clean_text_block(text)
             return ""
 
         title = pick_text(
@@ -186,13 +179,13 @@ class Indeed:
                 description_text = body.get_text(" ", strip=True)
 
         description_text = description_text[:10000] if description_text else ""
-        description_text = _utils._clean_text_block(description_text)
+        description_text = _utils.clean_text_block(description_text)
 
         detail_list = [
             item.get_text(" ", strip=True)
             for item in soup.select('div[data-testid="jobDetailsSection"] li')
         ]
-        detail_list = [_utils._clean_text_block(item) for item in detail_list if item]
+        detail_list = [_utils.clean_text_block(item) for item in detail_list if item]
 
         salary = ""
         job_type = ""
@@ -238,7 +231,7 @@ class Indeed:
             "posted_date": posted_date,
             "description": description_text,
             "details_list": detail_list,
-            "raw_text": self._clean_text_block(raw_text),
+            "raw_text": self.clean_text_block(raw_text),
             "scraped_at": datetime.now().isoformat(),
         }
 
@@ -339,10 +332,8 @@ class Indeed:
 
             query_target = detail_container if detail_container else page
 
-            # Wait a bit for expanded details to load
             time.sleep(0.5 + random.uniform(0, 0.3))
 
-            # Extract job title - multiple strategies
             try:
                 title_elem = query_target.query_selector(
                     'h1.jobsearch-JobInfoHeader-title, h1[data-testid="job-title"], h2.jobTitle, h2[class*="jobTitle"], h2[data-testid="job-title"]'
@@ -354,7 +345,6 @@ class Indeed:
             except Exception:
                 pass
 
-            # Extract company name
             try:
                 company_elem = query_target.query_selector(
                     '[data-testid="company-name"], div[data-testid="inlineCompanyName"], span.companyName, a[data-testid="company-name"]'
@@ -368,7 +358,6 @@ class Indeed:
             except Exception:
                 pass
 
-            # Extract location
             try:
                 location_elem = query_target.query_selector(
                     '[data-testid="job-location"], div[data-testid="inlineCompanyLocation"], span[class*="location"], div[class*="companyLocation"]'
@@ -378,7 +367,6 @@ class Indeed:
             except Exception:
                 pass
 
-            # Extract salary
             try:
                 salary_elem = query_target.query_selector(
                     '[data-testid="attribute_snippet_testid"], span[class*="salary"], div[class*="salary"]'
@@ -394,7 +382,6 @@ class Indeed:
             except Exception:
                 pass
 
-            # Extract job type (full-time, part-time, contract, etc.)
             try:
                 job_type_elems = query_target.query_selector_all(
                     '[data-testid="attribute_snippet_testid"], span[class*="jobType"]'
@@ -417,7 +404,6 @@ class Indeed:
             except Exception:
                 pass
 
-            # Extract job description
             try:
                 desc_elem = query_target.query_selector(
                     '[data-testid="job-description"], div[class*="jobDescription"], div[id*="jobDescriptionText"], div#jobDescriptionText'
@@ -429,11 +415,10 @@ class Indeed:
                 if desc_elem:
                     job_details["description"] = desc_elem.inner_text().strip()[
                         :1000
-                    ]  # Limit to 1000 chars
+                    ]
             except Exception:
                 pass
 
-            # Extract posted date
             try:
                 date_elem = query_target.query_selector(
                     '[data-testid="myJobsStateDate"], span[class*="date"], span[class*="posted"], div.jobsearch-JobMetadataFooter'
@@ -447,14 +432,12 @@ class Indeed:
             except Exception:
                 pass
 
-            # Check if "Apply now" button exists
             try:
                 apply_now = query_target.query_selector(
                     'button:visible:has-text("Apply now"), button:visible:has-text("Apply Now"), [data-testid="indeedApply"]'
                 )
                 if apply_now:
                     job_details["has_apply_now"] = True
-                    # Get apply link if it's a link
                     try:
                         apply_href = apply_now.get_attribute("href")
                         if apply_href:
@@ -467,7 +450,6 @@ class Indeed:
             except Exception:
                 pass
 
-            # Extract all links from the expanded job card
             try:
                 all_links = query_target.query_selector_all("a[href]")
                 extracted_links = []
@@ -478,7 +460,6 @@ class Indeed:
                         link_text = link_elem.inner_text().strip()
 
                         if href:
-                            # Normalize relative URLs
                             if href.startswith("/"):
                                 domain = self.get_indeed_domain(country)
                                 href = f"https://{domain}{href}"
@@ -490,11 +471,10 @@ class Indeed:
                                 "url": href,
                                 "text": (
                                     link_text[:100] if link_text else ""
-                                ),  # Limit text length
+                                ),
                                 "type": "unknown",
                             }
 
-                            # Categorize links
                             href_lower = href.lower()
                             text_lower = (link_text or "").lower()
 
@@ -537,7 +517,6 @@ class Indeed:
                 pass
 
         except Exception as e:
-            # If extraction fails, at least return the URL
             pass
 
         return job_details

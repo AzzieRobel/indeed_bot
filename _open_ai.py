@@ -1,8 +1,6 @@
-from typing import Any, Optional
+from typing import Any, Optional, List
 import time
-import yaml
 
-# OpenAI imports
 try:
     from openai import OpenAI
 
@@ -39,7 +37,6 @@ class OpenAI_Manager:
         text_content = None
 
         try:
-            # Priority 1: Browser extraction (optional)
             if browser_page:
                 try:
                     browser_page.goto(job_link, wait_until="load", timeout=30000)
@@ -78,7 +75,6 @@ class OpenAI_Manager:
                     {text_content[:6000]}
                 """
             else:
-                # Fallback when no page content is available
                 prompt = f"""
                 Extract and summarize the job posting from this URL:
                 URL: {job_link}
@@ -92,7 +88,6 @@ class OpenAI_Manager:
                 - Any other inferred details
                 """
 
-            # Call OpenAI
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
@@ -111,3 +106,40 @@ class OpenAI_Manager:
         except Exception as e:
             print(f"Error extracting job summary with OpenAI: {e}")
             return None
+
+    def get_embedding(
+        self,
+        text: str,
+        client: Any,
+        model: str = "text-embedding-3-small",
+        max_length: int = 8000,
+        retries: int = 2,
+    ) -> Optional[List[float]]:
+
+        if not client:
+            print("Error: OpenAI client missing in get_embedding()")
+            return None
+
+        if not text or not isinstance(text, str):
+            print("Error: Invalid or empty text passed to get_embedding()")
+            return None
+
+        clean_text = text.strip()
+        if len(clean_text) > max_length:
+            clean_text = clean_text[:max_length]
+
+        for attempt in range(retries + 1):
+            try:
+                response = client.embeddings.create(model=model, input=clean_text)
+
+                if not response or not response.data or len(response.data) == 0:
+                    print("Error: Empty embedding response from OpenAI")
+                    continue
+
+                return response.data[0].embedding
+
+            except Exception as e:
+                print(f"[Attempt {attempt+1}] Error getting embedding: {e}")
+
+        print("Embedding failed after retries.")
+        return None
