@@ -161,7 +161,7 @@ def process_job_for_matching(
         job_embedding_list = None
         job_embedding_json = None
         if openai_client:
-            job_embedding_list = get_embedding(job_summary, openai_client)
+            job_embedding_list = openAI_manager.get_embedding(job_summary, openai_client)
             if job_embedding_list:
                 job_embedding_json = json.dumps(job_embedding_list)
 
