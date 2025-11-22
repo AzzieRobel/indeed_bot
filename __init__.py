@@ -146,7 +146,9 @@ def process_job_for_matching(
             )
 
         if not job_details:
-            job_details = indeed.scrape_job_details_from_link(normalized_link, REQUESTS_AVAILABLE)
+            job_details = indeed.scrape_job_details_from_link(
+                normalized_link, REQUESTS_AVAILABLE
+            )
         if not job_details:
             return None
 
@@ -157,7 +159,9 @@ def process_job_for_matching(
         job_embedding_list = None
         job_embedding_json = None
         if openai_client:
-            job_embedding_list = openAI_manager.get_embedding(job_summary, openai_client)
+            job_embedding_list = openAI_manager.get_embedding(
+                job_summary, openai_client
+            )
             if job_embedding_list:
                 job_embedding_json = json.dumps(job_embedding_list)
 
@@ -232,7 +236,7 @@ def sync_profile_from_config() -> bool:
 
 
 # ============================================================================
-# OpenAI Integration Functions
+# AI Matching Functions
 # ============================================================================
 
 
@@ -248,11 +252,6 @@ def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
         return 0.0
 
     return dot_product / (magnitude1 * magnitude2)
-
-
-# ============================================================================
-# AI Matching Functions
-# ============================================================================
 
 
 def keyword_score(job_summary: str, user_profile: Dict[str, Any]) -> Dict[str, float]:
@@ -505,26 +504,30 @@ try:
     with Camoufox(user_data_dir=user_data_dir, persistent_context=True) as browser:
         browser_instance = browser
         page = browser.new_page()
-        
+
         try:
             indeed_domain = indeed.get_indeed_domain(country)
             page.goto(f"https://{indeed_domain}")
             page.wait_for_load_state("domcontentloaded")
-            
+
             if not check_login_status(page):
                 wait_for_manual_login(page, language, country)
                 page.close()
                 sys.exit(0)
-            
+
             print("Token found, proceeding with job search...")
-            
+
             db_path = db.init_database()
             print(f"Database initialized: {db_path}")
-            
+
             openai_client = openAI_manager.get_openai_client()
             if not openai_client:
-                print("Warning: OpenAI client not available. Jobs will be saved but not processed immediately.")
-                print("You can process them later using: python process_jobs.py --extract-summaries --match")
+                print(
+                    "Warning: OpenAI client not available. Jobs will be saved but not processed immediately."
+                )
+                print(
+                    "You can process them later using: python process_jobs.py --extract-summaries --match"
+                )
                 user_profile = None
                 user_profile_embedding = None
             else:
@@ -539,7 +542,7 @@ try:
                     except Exception as e:
                         print(f"Warning: Could not load user profile: {e}")
                         user_profile = None
-                
+
                 user_profile_embedding = None
                 if user_profile and openai_client:
                     profile_parts = []
@@ -547,7 +550,9 @@ try:
                         profile_parts.append(user_profile["professional_summary"])
                     job_prefs = user_profile.get("job_preferences", {})
                     if job_prefs.get("desired_role"):
-                        profile_parts.append(f"Desired role: {job_prefs['desired_role']}")
+                        profile_parts.append(
+                            f"Desired role: {job_prefs['desired_role']}"
+                        )
                     work_experience = user_profile.get("work_experience", [])
                     for exp in work_experience:
                         exp_text = f"{exp.get('title', '')} at {exp.get('company', '')}: {exp.get('description', '')}"
@@ -555,43 +560,51 @@ try:
                     technical_skills = user_profile.get("technical_skills", [])
                     soft_skills = user_profile.get("soft_skills", [])
                     if technical_skills:
-                        profile_parts.append(f"Technical skills: {', '.join(technical_skills)}")
+                        profile_parts.append(
+                            f"Technical skills: {', '.join(technical_skills)}"
+                        )
                     if soft_skills:
                         profile_parts.append(f"Soft skills: {', '.join(soft_skills)}")
                     education = user_profile.get("education", [])
                     for edu in education:
-                        edu_text = f"{edu.get('degree', '')} from {edu.get('institution', '')}"
+                        edu_text = (
+                            f"{edu.get('degree', '')} from {edu.get('institution', '')}"
+                        )
                         profile_parts.append(edu_text)
                     profile_text = " ".join(profile_parts)
                     if profile_text:
                         print("Generating user profile embedding...")
-                        user_profile_embedding = openAI_manager.get_embedding(profile_text, openai_client)
+                        user_profile_embedding = openAI_manager.get_embedding(
+                            profile_text, openai_client
+                        )
                         print("User profile embedding ready.")
-                
+
                 if user_profile:
-                    print(f"User profile loaded. Processing jobs immediately with AI matching...")
+                    print(
+                        f"User profile loaded. Processing jobs immediately with AI matching..."
+                    )
                 else:
-                    print("Warning: No user profile found. Jobs will be saved but not matched.")
-            
+                    print(
+                        "Warning: No user profile found. Jobs will be saved but not matched."
+                    )
+
             job = search_config.get("job", "")
             location = search_config.get("location", "")
-            
+
             if not job:
                 print("Error: 'job' field is required in config.yaml")
                 sys.exit(1)
-            
+
             base_domain = indeed.get_indeed_domain(country)
-            
-            params = {
-                "q": job
-            }
-            
+
+            params = {"q": job}
+
             if location:
                 params["l"] = location
-            
+
             query_string = urllib.parse.urlencode(params)
             base_url = f"https://{base_domain}/jobs?{query_string}"
-            
+
             print(f"Search Configuration:")
             print(f"  Job: {job}")
             print(f"  Location: {location if location else 'Any location'}")
@@ -604,66 +617,86 @@ try:
             empty_pages_count = 0
             max_empty_pages = 2
             max_pages = 1000
-            
+
             print("Starting to process jobs with AI...")
-            print("Each job will be: normalized → extract summary → match → save if matched")
+            print(
+                "Each job will be: normalized → extract summary → match → save if matched"
+            )
             print("(Pages are paginated by increments of 10: start=0, 10, 20, 30, ...)")
             print()
-            
+
             while start_index < max_pages * 10:
                 if shutdown_flag:
                     break
-                
+
                 if start_index == 0:
                     url = base_url
                 else:
                     separator = "&" if "?" in base_url else "?"
                     url = f"{base_url}{separator}start={start_index}"
                 page_num = (start_index // 10) + 1
-                
+
                 try:
                     print(f"[Page {page_num}] Visiting URL: {url}")
                     page.goto(url, wait_until="load", timeout=60000)
-                    
+
                     print("Waiting for page to fully load...")
                     try:
-                        page.wait_for_selector('a.jcs-JobTitle, a[data-jk], div#jobsearch', timeout=30000, state="visible")
+                        page.wait_for_selector(
+                            "a.jcs-JobTitle, a[data-jk], div#jobsearch",
+                            timeout=30000,
+                            state="visible",
+                        )
                     except Exception:
-                        print("Cloudflare protection detected, waiting for manual interaction if needed...")
+                        print(
+                            "Cloudflare protection detected, waiting for manual interaction if needed..."
+                        )
                         time.sleep(5)
-                    
+
                     wait_time = 6 + random.uniform(2, 4)
                     time.sleep(wait_time)
-                    
+
                     try:
-                        page.wait_for_selector('a.jcs-JobTitle, a[data-jk], a[id^="job_"]', timeout=15000)
+                        page.wait_for_selector(
+                            'a.jcs-JobTitle, a[data-jk], a[id^="job_"]', timeout=15000
+                        )
                         print("Job cards detected on page")
                     except Exception:
-                        print("Warning: Job listings may not have loaded yet, trying anyway...")
+                        print(
+                            "Warning: Job listings may not have loaded yet, trying anyway..."
+                        )
                         time.sleep(3)
 
                     try:
                         current_url = page.url
-                        print(f"[Page {page_num}] Current page URL: {current_url[:100]}...")
-                        
+                        print(
+                            f"[Page {page_num}] Current page URL: {current_url[:100]}..."
+                        )
+
                         job_links = collect_job_links(page, country)
-                        
+
                         if job_links:
                             empty_pages_count = 0
-                            
+
                             matched_count = 0
                             skipped_count = 0
                             error_count = 0
-                            
+
                             for i, link in enumerate(job_links, 1):
                                 # _utils.click_and_wait()
-                                print(f"  [{i}/{len(job_links)}] Processing: {link[:60]}...")
+                                print(
+                                    f"  [{i}/{len(job_links)}] Processing: {link[:60]}..."
+                                )
 
                                 print(openai_client, user_profile)
                                 if openai_client and user_profile:
                                     matched = process_and_save_job_immediately(
-                                        link, openai_client, user_profile,
-                                        user_profile_embedding, page, job,
+                                        link,
+                                        openai_client,
+                                        user_profile,
+                                        user_profile_embedding,
+                                        page,
+                                        job,
                                     )
                                     if matched:
                                         matched_count += 1
@@ -674,11 +707,20 @@ try:
                                 else:
                                     try:
                                         job_key = None
-                                        if 'jk=' in link:
-                                            match = re.search(r'jk=([a-zA-Z0-9]+)', link)
+                                        if "jk=" in link:
+                                            match = re.search(
+                                                r"jk=([a-zA-Z0-9]+)", link
+                                            )
                                             if match:
                                                 job_key = match.group(1)
-                                        saved = db.save_job_link(link, job_key, job, location, country, language)
+                                        saved = db.save_job_link(
+                                            link,
+                                            job_key,
+                                            job,
+                                            location,
+                                            country,
+                                            language,
+                                        )
                                         if saved:
                                             matched_count += 1
                                         else:
@@ -686,49 +728,69 @@ try:
                                     except Exception as e:
                                         error_count += 1
                                         print(f"    ✗ Error: {e}")
-                                
+
                                 if openai_client:
                                     time.sleep(1)
-                            
+
                             total_matched = db.get_job_count()
-                            print(f"[Page {page_num}] Matched: {matched_count}, Skipped: {skipped_count}, Errors: {error_count} (Total matched in DB: {total_matched})")
+                            print(
+                                f"[Page {page_num}] Matched: {matched_count}, Skipped: {skipped_count}, Errors: {error_count} (Total matched in DB: {total_matched})"
+                            )
                         else:
                             empty_pages_count += 1
                             print(f"[Page {page_num}] No job links found on this page.")
-                            
+
                             try:
-                                job_cards_count_1 = len(page.query_selector_all('a.jcs-JobTitle'))
-                                job_cards_count_2 = len(page.query_selector_all('a[data-jk]'))
-                                job_cards_count_3 = len(page.query_selector_all('a[id^="job_"]'))
-                                total_cards = max(job_cards_count_1, job_cards_count_2, job_cards_count_3)
-                                
-                                print(f"  Debug: Found {job_cards_count_1} cards with jcs-JobTitle, {job_cards_count_2} with data-jk, {job_cards_count_3} with id^='job_'")
-                                
+                                job_cards_count_1 = len(
+                                    page.query_selector_all("a.jcs-JobTitle")
+                                )
+                                job_cards_count_2 = len(
+                                    page.query_selector_all("a[data-jk]")
+                                )
+                                job_cards_count_3 = len(
+                                    page.query_selector_all('a[id^="job_"]')
+                                )
+                                total_cards = max(
+                                    job_cards_count_1,
+                                    job_cards_count_2,
+                                    job_cards_count_3,
+                                )
+
+                                print(
+                                    f"  Debug: Found {job_cards_count_1} cards with jcs-JobTitle, {job_cards_count_2} with data-jk, {job_cards_count_3} with id^='job_'"
+                                )
+
                                 if total_cards == 0:
-                                    print(f"[Page {page_num}] No job cards found - likely reached the end of results.")
+                                    print(
+                                        f"[Page {page_num}] No job cards found - likely reached the end of results."
+                                    )
                                     empty_pages_count = max_empty_pages
                                 else:
-                                    print(f"[Page {page_num}] Found {total_cards} job cards but couldn't extract links - may need more wait time")
+                                    print(
+                                        f"[Page {page_num}] Found {total_cards} job cards but couldn't extract links - may need more wait time"
+                                    )
                             except Exception as e:
                                 print(f"  Debug error checking cards: {e}")
-                            
+
                             if empty_pages_count >= max_empty_pages:
-                                print(f"\nReached end of results: {max_empty_pages} consecutive pages with no jobs found.")
+                                print(
+                                    f"\nReached end of results: {max_empty_pages} consecutive pages with no jobs found."
+                                )
                                 print("Stopping scrape.")
                                 break
-                                
+
                     except Exception as e:
                         print(f"[Page {page_num}] Error extracting jobs: {e}")
                         empty_pages_count += 1
                         if empty_pages_count >= max_empty_pages:
                             print("Too many errors, stopping scrape.")
                             break
-                    
+
                     start_index += 10
-                    
+
                     delay = 4 + random.uniform(1, 3)
                     time.sleep(delay)
-                    
+
                 except KeyboardInterrupt:
                     print("\n\nInterrupted by user. Shutting down...")
                     shutdown_flag = True
@@ -745,10 +807,12 @@ try:
             if not shutdown_flag:
                 total_in_db = db.get_job_count()
                 print(f"\nTotal matched jobs in database: {total_in_db}")
-                print(f"Processing complete - only matched jobs (score >= 0.6) are saved")
+                print(
+                    f"Processing complete - only matched jobs (score >= 0.6) are saved"
+                )
                 print(f"Database location: {os.path.abspath(db_path)}")
                 print("\n\nJob processing completed!")
-            
+
         except KeyboardInterrupt:
             print("\n\nInterrupted by user. Shutting down...")
         except Exception as e:
