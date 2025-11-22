@@ -1,13 +1,6 @@
 from typing import Any, Optional, List
+from openai import OpenAI
 import time
-
-try:
-    from openai import OpenAI
-
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    print("Warning: OpenAI library not installed. Install with: pip install openai")
 
 
 class OpenAI_Manager:
@@ -15,9 +8,6 @@ class OpenAI_Manager:
         self.api_key = api_key
 
     def get_openai_client(self) -> Optional[Any]:
-        if not OPENAI_AVAILABLE:
-            return None
-
         if not self.api_key:
             return None
 

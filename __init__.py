@@ -21,10 +21,13 @@ import re
 import os
 import math
 import urllib
-from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 from camoufox.sync_api import Camoufox
+from dotenv import load_dotenv
 
+load_dotenv()
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
 from _database import Database
 from _indeed import Indeed, REQUESTS_AVAILABLE
@@ -32,23 +35,19 @@ from _open_ai import OpenAI_Manager
 import _utils
 
 
-with open("config.yaml", "r") as f:
-    config = yaml.safe_load(f)
 camoufox_config = config.get("camoufox", {})
 user_data_dir = camoufox_config.get("user_data_dir")
-
 search_config = config.get("search", {})
 country = search_config.get("country", "us")
 language = search_config.get("language", "us")
-openAI_api_key = config.get("openai", {}).get("api_key")
+openAI_api_key = os.getenv("OPENAI_API_KEY")
 
 db = Database("indeed_jobs.db")
 indeed = Indeed()
 openAI_manager = OpenAI_Manager(openAI_api_key)
 
 
-def collect_job_links(page, language, country):
-    """Extract real viewjob links from job cards by extracting job key and constructing proper URLs."""
+def collect_job_links(page, country):
     job_links = []
 
     try:
@@ -123,9 +122,6 @@ def process_job_for_matching(
     user_profile_embedding: Optional[List[float]],
     browser_page: Optional[Any] = None,
     search_query: str = None,
-    location: str = None,
-    country: str = None,
-    language: str = None,
     min_score: float = 0.6,
 ) -> Optional[Dict[str, Any]]:
     if not openai_client or not user_profile:
@@ -200,9 +196,6 @@ def process_and_save_job_immediately(
     user_profile_embedding: Optional[List[float]],
     browser_page: Optional[Any] = None,
     search_query: str = None,
-    location: str = None,
-    country: str = None,
-    language: str = None,
     min_score: float = 0.6,
 ) -> bool:
     job_data = process_job_for_matching(
@@ -212,9 +205,6 @@ def process_and_save_job_immediately(
         user_profile_embedding,
         browser_page=browser_page,
         search_query=search_query,
-        location=location,
-        country=country,
-        language=language,
         min_score=min_score,
     )
     if job_data is not None:
@@ -266,10 +256,6 @@ def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
 
 
 def keyword_score(job_summary: str, user_profile: Dict[str, Any]) -> Dict[str, float]:
-    """
-    Calculate keyword-based scores for different criteria.
-    Returns a dictionary with scores for: relevance, location, role_type, experience
-    """
     if not job_summary:
         return {"relevance": 0.0, "location": 0.0, "role_type": 0.0, "experience": 0.0}
 
@@ -458,93 +444,6 @@ def profile_to_text(profile: Dict[str, Any]) -> str:
         elif isinstance(lng, str) and lng.strip():
             lines.append(f"Language: {lng.strip()}")
     return " ".join(filter(None, lines))
-
-
-# def match_jobs(
-#     user_profile: Dict[str, Any],
-#     openai_client: Optional[Any] = None,
-#     min_score: float = 0.6,
-#     limit: Optional[int] = None,
-# ) -> List[Dict[str, Any]]:
-#     """
-#     Workflow:
-#         1. Ensure each stored job has scraped job details + summary text.
-#         2. Match the scraped content with the provided user profile.
-#         3. Save updated data to the database and return matches above min_score.
-#     """
-#     jobs = db.get_jobs_from_db(limit)
-#     matched_jobs: List[Dict[str, Any]] = []
-
-#     profile_text = profile_to_text(user_profile)
-#     user_profile_embedding = None
-#     if openai_client and profile_text:
-#         user_profile_embedding = get_embedding(profile_text, openai_client)
-
-#     for (
-#         job_id,
-#         job_link,
-#         stored_summary,
-#         stored_details_json,
-#         stored_embedding_json,
-#     ) in jobs:
-#         job_details = None
-#         if stored_details_json:
-#             try:
-#                 job_details = json.loads(stored_details_json)
-#             except Exception:
-#                 job_details = None
-
-#         job_summary = stored_summary or ""
-#         if not job_details or not job_summary:
-#             scraped = indeed.scrape_job_details_from_link(job_link, REQUESTS_AVAILABLE)
-#             if scraped:
-#                 job_details = scraped
-#                 job_summary = _utils.format_job_details_for_summary(scraped)
-
-#         if not job_summary:
-#             job_summary = f"Job posting could not be scraped for {job_link}"
-
-#         job_embedding = None
-#         if stored_embedding_json:
-#             try:
-#                 job_embedding = json.loads(stored_embedding_json)
-#             except Exception:
-#                 job_embedding = None
-
-#         if not job_embedding and openai_client and job_summary:
-#             job_embedding = get_embedding(job_summary, openai_client)
-
-#         score, reason = calculate_match_score(
-#             job_summary, job_embedding, user_profile, user_profile_embedding
-#         )
-
-#         matched = score >= min_score
-#         matched_at_value = datetime.now() if matched else None
-#         application_status = "matched" if matched else "not_matched"
-
-#         db.update_job_in_db(
-#             job_id,
-#             job_summary,
-#             job_details,
-#             job_embedding,
-#             score,
-#             reason,
-#             matched_at_value,
-#             application_status,
-#             stored_embedding_json
-#         )
-
-#         if matched:
-#             matched_jobs.append(
-#                 {
-#                     "id": job_id,
-#                     "job_link": job_link,
-#                     "job_summary": job_summary,
-#                     "score": score,
-#                     "reason": reason,
-#                 }
-#             )
-#     return matched_jobs
 
 
 def check_login_status(page):
@@ -747,7 +646,7 @@ try:
                         current_url = page.url
                         print(f"[Page {page_num}] Current page URL: {current_url[:100]}...")
                         
-                        job_links = collect_job_links(page, language, country)
+                        job_links = collect_job_links(page, country)
                         
                         if job_links:
                             empty_pages_count = 0
@@ -764,7 +663,7 @@ try:
                                 if openai_client and user_profile:
                                     matched = process_and_save_job_immediately(
                                         link, openai_client, user_profile,
-                                        user_profile_embedding, page, job, location, country, language
+                                        user_profile_embedding, page, job,
                                     )
                                     if matched:
                                         matched_count += 1

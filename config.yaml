@@ -10,10 +10,6 @@ search:
 camoufox:
   user_data_dir: "user_data_dir"  # Directory to store browser session data
 
-# OpenAI Configuration for AI Matching
-openai:
-  api_key: ""  # Your OpenAI API key (get from https://platform.openai.com/api-keys)
-
 # User Profile for AI Matching (Resume Structure)
 user_profile:
   # Personal Information
@@ -144,8 +140,4 @@ user_profile:
   
   # Experience Level
   experience_level: "senior"
-
-
-
-
 
