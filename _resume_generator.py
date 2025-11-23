@@ -401,9 +401,9 @@ class ResumeCoverLetterGenerator:
                 paragraph.clear()
                 paragraph.add_run(full_text)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"cover_letter_{timestamp}.docx"
-        output_path = self.output_dir / output_filename
+        unique_id = uuid.uuid4().hex[:8]
+        base_name = f"cover_letter_{full_name.replace(' ', '_')}_{unique_id}.docx"
+        output_path = self.output_dir / base_name
         doc.save(str(output_path))
 
         return output_path
