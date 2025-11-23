@@ -115,7 +115,8 @@ class ResumeCoverLetterGenerator:
         if job_achievements:
             enhanced.extend(job_achievements[:2])
         if ai_client and self.ai_provider and candidate_achievements:
-            suggested = self.ai_provider.enhance_achievements_with_openai(
+            # Changed function name to reference generic AI usage, not openai-specific
+            suggested = self.ai_provider.enhance_achievements_with_ai(
                 candidate_achievements,
                 job_analysis.get("requirements_summary", ""),
                 ai_client,
