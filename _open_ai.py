@@ -1,6 +1,7 @@
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Dict
 from openai import OpenAI
-import time
+import json
+import re
 
 
 class OpenAI_Manager:
@@ -19,65 +20,27 @@ class OpenAI_Manager:
 
 
     def extract_job_summary_with_openai(
-        self, job_link: str, client: Any, browser_page=None
+        self, job_detail: dict, client: Any
     ) -> Optional[str]:
         if not client:
             return None
 
-        text_content = None
+        prompt = (
+            "Extract and summarize the following job posting details. "
+            "Provide a concise summary (300-400 words) including: "
+            "- Job title\n"
+            "- Company name\n"
+            "- Salary(Pay)\n"
+            "- Job types (Fixed period/Part time/Full time/contract)\n"
+            "- Location (city/state/remote)\n"
+            "- About the Role\n"
+            "- Key Responsibilities\n"
+            "- Tools You May Work With\n"
+            "- What We Offer\n\n"
+            f"Job posting details:\n{str(job_detail)[:6000]}"
+        )
 
         try:
-            if browser_page:
-                try:
-                    browser_page.goto(job_link, wait_until="load", timeout=30000)
-                    time.sleep(2)
-
-                    try:
-                        body_text = browser_page.query_selector("body")
-                        if body_text:
-                            text_content = body_text.inner_text()[:8000]
-                    except Exception:
-                        html = browser_page.content()
-                        text_content = html[:8000]
-
-                except Exception as e:
-                    print(f"  Warning: Browser failed, falling back to HTTP: {e}")
-                    text_content = None
-
-            if text_content:
-                prompt = f"""
-                    Extract and summarize the following job posting text.
-
-                    Provide a concise summary (200–300 words) including:
-                    - Job title
-                    - Company name
-                    - Location (city/state/remote)
-                    - Job type (FT/PT/contract)
-                    - Technical skills
-                    - Soft skills
-                    - Languages
-                    - Job preferences
-                    - Experience level
-                    - Key responsibilities
-                    - Salary if mentioned
-
-                    Job posting content:
-                    {text_content[:6000]}
-                """
-            else:
-                prompt = f"""
-                Extract and summarize the job posting from this URL:
-                URL: {job_link}
-
-                If the page content cannot be accessed, infer based on the URL structure.
-
-                Provide a concise 200–300 word summary including:
-                - Job title (if identifiable)
-                - Company name (if identifiable)
-                - Location (if identifiable)
-                - Any other inferred details
-                """
-
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
@@ -90,9 +53,7 @@ class OpenAI_Manager:
                 max_tokens=500,
                 temperature=0.3,
             )
-
             return response.choices[0].message.content.strip()
-
         except Exception as e:
             print(f"Error extracting job summary with OpenAI: {e}")
             return None
@@ -133,3 +94,190 @@ class OpenAI_Manager:
 
         print("Embedding failed after retries.")
         return None
+
+    def analyze_job_description_for_resume(
+        self, job_description: str, client: Any
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Analyze job description to extract keywords, skills, and requirements for resume generation.
+
+        Args:
+            job_description: Full job description text
+            client: OpenAI client instance
+
+        Returns:
+            Dictionary with extracted keywords, skills, achievements, and requirements, or None if error
+        """
+        if not client:
+            return None
+
+        prompt = f"""Analyze the following job description and extract:
+1. Key technical skills and technologies mentioned (as a comma-separated list)
+2. Key soft skills mentioned (as a comma-separated list)
+3. Important keywords and phrases that should appear in a resume (as a comma-separated list)
+4. Metrics or achievements mentioned (e.g., "increase sales by 20%", "manage team of 10")
+5. Key responsibilities and requirements (as a brief summary)
+
+Job Description:
+{job_description[:4000]}
+
+Respond in JSON format:
+{{
+    "technical_skills": ["skill1", "skill2", ...],
+    "soft_skills": ["skill1", "skill2", ...],
+    "keywords": ["keyword1", "keyword2", ...],
+    "achievements": ["achievement1", "achievement2", ...],
+    "requirements_summary": "brief summary of key requirements"
+}}"""
+
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a job description analyzer. Extract key information in JSON format.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=800,
+                temperature=0.3,
+            )
+            result = response.choices[0].message.content.strip()
+
+            # Try to parse JSON from response
+            json_match = re.search(r"\{[\s\S]*\}", result)
+            if json_match:
+                return json.loads(json_match.group())
+            else:
+                return None
+        except Exception as e:
+            print(f"Error analyzing job description with OpenAI: {e}")
+            return None
+
+    def enhance_achievements_with_openai(
+        self,
+        user_achievements: List[str],
+        job_requirements_summary: str,
+        client: Any,
+    ) -> Optional[List[str]]:
+        """
+        Enhance user achievements with job-relevant metrics and keywords using OpenAI.
+
+        Args:
+            user_achievements: User's existing achievements
+            job_requirements_summary: Summary of job requirements
+            client: OpenAI client instance
+
+        Returns:
+            List of enhanced achievement statements, or None if error
+        """
+        if not client or not user_achievements:
+            return None
+
+        try:
+            prompt = f"""Given these user achievements:
+{json.dumps(user_achievements, indent=2)}
+
+And these job requirements:
+{job_requirements_summary}
+
+Suggest 2-3 enhanced achievement statements that:
+1. Include relevant keywords from the job
+2. Use metrics where possible
+3. Match the job's focus areas
+
+Return as JSON array of strings."""
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a resume optimizer. Suggest enhanced achievement statements.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=300,
+                temperature=0.4,
+            )
+            result = response.choices[0].message.content.strip()
+            json_match = re.search(r"\[[\s\S]*\]", result)
+            if json_match:
+                suggested = json.loads(json_match.group())
+                return suggested[:2]
+            return None
+        except Exception as e:
+            print(f"Error enhancing achievements with OpenAI: {e}")
+            return None
+
+    def generate_cover_letter_content(
+        self,
+        user_profile: Dict[str, Any],
+        job_description: str,
+        job_requirements_summary: str,
+        client: Any,
+    ) -> Optional[Dict[str, str]]:
+        """
+        Generate cover letter content using OpenAI.
+
+        Args:
+            user_profile: User profile dictionary
+            job_description: Job description text
+            job_requirements_summary: Summary of job requirements
+            client: OpenAI client instance
+
+        Returns:
+            Dictionary with 'opening', 'body1', 'body2', 'closing' keys, or None if error
+        """
+        if not client:
+            return None
+
+        try:
+            prompt = f"""Write a professional cover letter for this candidate applying to this job.
+
+Candidate Profile:
+Name: {user_profile.get('name', '')}
+Summary: {user_profile.get('professional_summary', '')[:300]}
+Key Skills: {', '.join(user_profile.get('technical_skills', [])[:10])}
+
+Job Description:
+{job_description[:1500]}
+
+Requirements:
+{job_requirements_summary}
+
+Write:
+1. Opening paragraph (2-3 sentences) - why interested
+2. Body paragraph 1 (3-4 sentences) - relevant experience and skills
+3. Body paragraph 2 (3-4 sentences) - specific achievements and fit
+4. Closing paragraph (2-3 sentences) - enthusiasm and call to action
+
+Return as JSON:
+{{
+    "opening": "...",
+    "body1": "...",
+    "body2": "...",
+    "closing": "..."
+}}"""
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a professional cover letter writer. Write compelling, ATS-friendly cover letters.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=600,
+                temperature=0.7,
+            )
+            result = response.choices[0].message.content.strip()
+            json_match = re.search(r"\{[\s\S]*\}", result)
+            if json_match:
+                return json.loads(json_match.group())
+            return None
+        except Exception as e:
+            print(f"Error generating cover letter content with OpenAI: {e}")
+            return None
