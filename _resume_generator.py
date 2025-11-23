@@ -6,32 +6,28 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 from docx import Document
-from docx.shared import Pt
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from _doc_generator import TemplateManager, TEMPLATE_DIR
-from _open_ai import OpenAI_Manager
 
 
 class ResumeCoverLetterGenerator:
-
     def __init__(
         self,
-        openai_manager: Optional[OpenAI_Manager] = None,
+        ai_provider: Optional[Any] = None,
         template_dir: Path = TEMPLATE_DIR,
         output_dir: Path = Path("output/documents"),
     ):
         self.template_manager = TemplateManager(template_dir)
-        self.openai_manager = openai_manager
+        self.ai_provider = ai_provider
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def analyze_job_description(
-        self, job_description: str, openai_client: Any
+        self, job_description: str, ai_client: Any
     ) -> Dict[str, Any]:
-        if openai_client and self.openai_manager:
-            result = self.openai_manager.analyze_job_description_for_resume(
-                job_description, openai_client
+        if ai_client and self.ai_provider:
+            result = self.ai_provider.analyze_job_description_for_resume(
+                job_description, ai_client
             )
             if result:
                 return result
@@ -39,7 +35,6 @@ class ResumeCoverLetterGenerator:
 
     def _extract_keywords_basic(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
-
         tech_skills = []
         common_tech = [
             "python",
@@ -90,52 +85,50 @@ class ResumeCoverLetterGenerator:
         }
 
     def merge_skills_with_job(
-        self, user_skills: List[str], job_skills: List[str]
+        self, candidate_skills: List[str], job_skills: List[str]
     ) -> List[str]:
-        user_skills_lower = [s.lower().strip() for s in user_skills]
+        candidate_skills_lower = [s.lower().strip() for s in candidate_skills]
         job_skills_lower = [s.lower().strip() for s in job_skills]
 
-        matched_skills = []
-        for skill in user_skills:
-            if skill.lower().strip() in job_skills_lower:
-                matched_skills.append(skill)
+        matched_skills = [
+            s for s in candidate_skills if s.lower().strip() in job_skills_lower
+        ]
 
-        remaining_user = [
-            s for s in user_skills if s.lower().strip() not in job_skills_lower
+        remaining_candidate = [
+            s for s in candidate_skills if s.lower().strip() not in job_skills_lower
         ]
 
         new_job_skills = [
-            s for s in job_skills if s.lower().strip() not in user_skills_lower
+            s for s in job_skills if s.lower().strip() not in candidate_skills_lower
         ]
 
-        return matched_skills[:4] + remaining_user[:8] + new_job_skills[:4]
+        return matched_skills[:4] + remaining_candidate[:8] + new_job_skills[:4]
 
     def enhance_achievements(
         self,
-        user_achievements: List[str],
+        candidate_achievements: List[str],
         job_analysis: Dict[str, Any],
-        openai_client: Optional[Any] = None,
+        ai_client: Optional[Any] = None,
     ) -> List[str]:
-        enhanced = user_achievements.copy()
+        enhanced = candidate_achievements.copy()
         job_achievements = job_analysis.get("achievements", [])
         if job_achievements:
             enhanced.extend(job_achievements[:2])
-        if openai_client and self.openai_manager and user_achievements:
-            suggested = self.openai_manager.enhance_achievements_with_openai(
-                user_achievements,
+        if ai_client and self.ai_provider and candidate_achievements:
+            suggested = self.ai_provider.enhance_achievements_with_openai(
+                candidate_achievements,
                 job_analysis.get("requirements_summary", ""),
-                openai_client,
+                ai_client,
             )
             if suggested:
                 enhanced.extend(suggested)
-
         return enhanced[:6]
 
     def format_experience_section(
-        self, work_experience: List[Dict[str, Any]], job_keywords: List[str]
+        self, employment_history: List[Dict[str, Any]], job_keywords: List[str]
     ) -> str:
         sections = []
-        for exp in work_experience:
+        for exp in employment_history:
             title = exp.get("title", "")
             company = exp.get("company", "")
             location = exp.get("location", "")
@@ -209,16 +202,16 @@ class ResumeCoverLetterGenerator:
 
     def generate_resume(
         self,
-        user_profile: Dict[str, Any],
+        candidate_profile: Dict[str, Any],
         job_description: Optional[str] = None,
         job_analysis: Optional[Dict[str, Any]] = None,
         template_name: str = "resume_modern.docx",
-        openai_client: Optional[Any] = None,
+        ai_client: Optional[Any] = None,
     ) -> Path:
         self.template_manager.ensure_template_pack()
 
-        if job_description and not job_analysis and openai_client:
-            job_analysis = self.analyze_job_description(job_description, openai_client)
+        if job_description and not job_analysis and ai_client:
+            job_analysis = self.analyze_job_description(job_description, ai_client)
         elif not job_analysis:
             job_analysis = {
                 "technical_skills": [],
@@ -237,13 +230,13 @@ class ResumeCoverLetterGenerator:
         job_keywords = job_analysis.get("keywords", [])
         job_tech_skills = job_analysis.get("technical_skills", [])
 
-        full_name = user_profile.get("name", "${FULL_NAME}")
-        professional_title = user_profile.get("job_preferences", {}).get(
+        full_name = candidate_profile.get("name", "${FULL_NAME}")
+        professional_title = candidate_profile.get("job_preferences", {}).get(
             "desired_role", ""
         )
-        email = user_profile.get("email", "")
-        location = user_profile.get("location", "")
-        phone = user_profile.get("phone", "")
+        email = candidate_profile.get("email", "")
+        location = candidate_profile.get("location", "")
+        phone = candidate_profile.get("phone", "")
 
         contact_parts = []
         if email:
@@ -256,24 +249,24 @@ class ResumeCoverLetterGenerator:
             " | ".join(contact_parts) if contact_parts else "${CONTACT_BLOCK}"
         )
 
-        user_tech_skills = user_profile.get("technical_skills", [])
+        candidate_tech_skills = candidate_profile.get("technical_skills", [])
         enhanced_tech_skills = self.merge_skills_with_job(
-            user_tech_skills, job_tech_skills
+            candidate_tech_skills, job_tech_skills
         )
 
-        user_achievements = user_profile.get("key_achievements", [])
+        candidate_achievements = candidate_profile.get("key_achievements", [])
         enhanced_achievements = self.enhance_achievements(
-            user_achievements, job_analysis, openai_client
+            candidate_achievements, job_analysis, ai_client
         )
 
         experience_section = self.format_experience_section(
-            user_profile.get("work_experience", []), job_keywords
+            candidate_profile.get("work_experience", []), job_keywords
         )
         education_section = self.format_education_section(
-            user_profile.get("education", [])
+            candidate_profile.get("education", [])
         )
         certifications_section = self.format_certifications_section(
-            user_profile.get("certifications", [])
+            candidate_profile.get("certifications", [])
         )
 
         replacements = {
@@ -281,8 +274,8 @@ class ResumeCoverLetterGenerator:
             "${PROFESSIONAL_TITLE}": professional_title,
             "${CONTACT_BLOCK}": contact_block,
             "${TAGLINE}": professional_title or "Professional",
-            "${SUMMARY}": user_profile.get("professional_summary", ""),
-            "${PROFESSIONAL_PROFILE}": user_profile.get("professional_summary", ""),
+            "${SUMMARY}": candidate_profile.get("professional_summary", ""),
+            "${PROFESSIONAL_PROFILE}": candidate_profile.get("professional_summary", ""),
             "${CORE_SKILL_1}": (
                 enhanced_tech_skills[0] if len(enhanced_tech_skills) > 0 else ""
             ),
@@ -296,7 +289,7 @@ class ResumeCoverLetterGenerator:
                 enhanced_tech_skills[3] if len(enhanced_tech_skills) > 3 else ""
             ),
             "${TECH_STACK}": ", ".join(enhanced_tech_skills[:12]),
-            "${SOFT_SKILLS}": ", ".join(user_profile.get("soft_skills", [])[:10]),
+            "${SOFT_SKILLS}": ", ".join(candidate_profile.get("soft_skills", [])[:10]),
             "${EXPERIENCE_SECTION}": experience_section,
             "${EDUCATION_SECTION}": education_section,
             "${CERTIFICATIONS_SECTION}": certifications_section,
@@ -321,18 +314,18 @@ class ResumeCoverLetterGenerator:
 
     def generate_cover_letter(
         self,
-        user_profile: Dict[str, Any],
+        candidate_profile: Dict[str, Any],
         job_description: str,
         company_name: Optional[str] = None,
         company_address: Optional[str] = None,
         hiring_manager: Optional[str] = None,
         job_analysis: Optional[Dict[str, Any]] = None,
-        openai_client: Optional[Any] = None,
+        ai_client: Optional[Any] = None,
     ) -> Path:
         self.template_manager.ensure_template_pack()
 
-        if not job_analysis and openai_client:
-            job_analysis = self.analyze_job_description(job_description, openai_client)
+        if not job_analysis and ai_client:
+            job_analysis = self.analyze_job_description(job_description, ai_client)
         elif not job_analysis:
             job_analysis = {
                 "technical_skills": [],
@@ -349,33 +342,33 @@ class ResumeCoverLetterGenerator:
 
         doc = Document(str(template_path))
 
-        if openai_client and self.openai_manager:
-            ai_content = self.openai_manager.generate_cover_letter_content(
-                user_profile,
+        if ai_client and self.ai_provider:
+            ai_content = self.ai_provider.generate_cover_letter_content(
+                candidate_profile,
                 job_description,
                 job_analysis.get("requirements_summary", ""),
-                openai_client,
+                ai_client,
             )
         else:
             ai_content = None
 
         current_date = datetime.now().strftime("%B %d, %Y")
-        full_name = user_profile.get("name", "${FULL_NAME}")
+        full_name = candidate_profile.get("name", "${FULL_NAME}")
 
         opening = (
             ai_content.get("opening", "")
             if ai_content
-            else f"I am writing to express my interest in the position. With my background in {', '.join(user_profile.get('technical_skills', [])[:3])}, I am excited about this opportunity."
+            else f"I am writing to express my interest in the position. With my background in {', '.join(candidate_profile.get('technical_skills', [])[:3])}, I am excited about this opportunity."
         )
         body1 = (
             ai_content.get("body1", "")
             if ai_content
-            else f"My experience includes {user_profile.get('professional_summary', '')[:200]}."
+            else f"My experience includes {candidate_profile.get('professional_summary', '')[:200]}."
         )
         body2 = (
             ai_content.get("body2", "")
             if ai_content
-            else f"I have successfully {user_profile.get('key_achievements', ['delivered results'])[0] if user_profile.get('key_achievements') else 'achieved results'}."
+            else f"I have successfully {candidate_profile.get('key_achievements', ['delivered results'])[0] if candidate_profile.get('key_achievements') else 'achieved results'}."
         )
         closing = (
             ai_content.get("closing", "")
@@ -464,22 +457,22 @@ class ResumeCoverLetterGenerator:
 
     def generate_documents(
         self,
-        user_profile: Dict[str, Any],
+        candidate_profile: Dict[str, Any],
         job_description: str,
         company_name: Optional[str] = None,
         company_address: Optional[str] = None,
         hiring_manager: Optional[str] = None,
         template_name: str = "resume_modern.docx",
         export_pdf: bool = True,
-        openai_client: Optional[Any] = None,
+        ai_client: Optional[Any] = None,
     ) -> Dict[str, Path]:
         results = {}
 
         resume_docx = self.generate_resume(
-            user_profile,
+            candidate_profile,
             job_description,
             template_name=template_name,
-            openai_client=openai_client,
+            ai_client=ai_client,
         )
         results["resume_docx"] = resume_docx
 
@@ -490,12 +483,12 @@ class ResumeCoverLetterGenerator:
                 print(f"Could not export resume to PDF: {e}")
 
         cover_letter_docx = self.generate_cover_letter(
-            user_profile,
+            candidate_profile,
             job_description,
             company_name=company_name,
             company_address=company_address,
             hiring_manager=hiring_manager,
-            openai_client=openai_client,
+            ai_client=ai_client,
         )
         results["cover_letter_docx"] = cover_letter_docx
 
