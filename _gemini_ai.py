@@ -7,16 +7,21 @@ try:
 except ImportError:
     raise ImportError("You must install the google-generativeai package: pip install google-generativeai")
 
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+
+
 class GeminiAI_Manager:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
+        self._client = None
 
     def get_gemini_client(self) -> Optional[Any]:
         if not self.api_key:
             return None
         try:
             genai.configure(api_key=self.api_key)
-            return genai.GenerativeModel("gemini-pro")
+            self._client = genai.Client()
+            return self._client
         except Exception as e:
             print(f"Error initializing Gemini client: {e}")
             return None
@@ -41,13 +46,20 @@ class GeminiAI_Manager:
             f"Job posting details:\n{str(job_detail)[:6000]}"
         )
         try:
-            response = client.generate_content(
-                [prompt],
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.3, max_output_tokens=800
-                ),
+            response = client.models.generate_content(
+                model=DEFAULT_GEMINI_MODEL,
+                contents=prompt,
+                generation_config={
+                    "temperature": 0.3,
+                    "max_output_tokens": 800,
+                },
             )
-            summary = response.text.strip() if hasattr(response, "text") else response.candidates[0].content.parts[0].text.strip()
+            summary = getattr(response, "text", None)
+            if not summary:
+                # Fallback for other Gemini API output
+                summary = response.candidates[0].content.parts[0].text.strip()
+            else:
+                summary = summary.strip()
             return summary
         except Exception as e:
             print(f"Error extracting job summary with Gemini: {e}")
@@ -77,13 +89,19 @@ class GeminiAI_Manager:
                     "requirements_summary": "brief summary of key requirements"
                 }}"""
         try:
-            response = client.generate_content(
-                [prompt],
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.3, max_output_tokens=900
-                ),
+            response = client.models.generate_content(
+                model=DEFAULT_GEMINI_MODEL,
+                contents=prompt,
+                generation_config={
+                    "temperature": 0.3,
+                    "max_output_tokens": 900,
+                },
             )
-            result = response.text.strip() if hasattr(response, "text") else response.candidates[0].content.parts[0].text.strip()
+            result = getattr(response, "text", None)
+            if not result:
+                result = response.candidates[0].content.parts[0].text.strip()
+            else:
+                result = result.strip()
             json_match = re.search(r"\{[\s\S]*\}", result)
             if json_match:
                 return json.loads(json_match.group())
@@ -114,13 +132,19 @@ class GeminiAI_Manager:
                 3. Match the job's focus areas
 
                 Return as JSON array of strings."""
-            response = client.generate_content(
-                [prompt],
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.4, max_output_tokens=400
-                ),
+            response = client.models.generate_content(
+                model=DEFAULT_GEMINI_MODEL,
+                contents=prompt,
+                generation_config={
+                    "temperature": 0.4,
+                    "max_output_tokens": 400,
+                },
             )
-            result = response.text.strip() if hasattr(response, "text") else response.candidates[0].content.parts[0].text.strip()
+            result = getattr(response, "text", None)
+            if not result:
+                result = response.candidates[0].content.parts[0].text.strip()
+            else:
+                result = result.strip()
             json_match = re.search(r"\[[\s\S]*\]", result)
             if json_match:
                 suggested = json.loads(json_match.group())
@@ -179,13 +203,19 @@ class GeminiAI_Manager:
                     "body2": "...",
                     "closing": "..."
                 }}"""
-            response = client.generate_content(
-                [prompt],
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.7, max_output_tokens=700
-                ),
+            response = client.models.generate_content(
+                model=DEFAULT_GEMINI_MODEL,
+                contents=prompt,
+                generation_config={
+                    "temperature": 0.7,
+                    "max_output_tokens": 700,
+                },
             )
-            result = response.text.strip() if hasattr(response, "text") else response.candidates[0].content.parts[0].text.strip()
+            result = getattr(response, "text", None)
+            if not result:
+                result = response.candidates[0].content.parts[0].text.strip()
+            else:
+                result = result.strip()
             json_match = re.search(r"\{[\s\S]*\}", result)
             if json_match:
                 return json.loads(json_match.group())
@@ -202,8 +232,5 @@ class GeminiAI_Manager:
         max_length: int = 8000,
         retries: int = 2,
     ) -> Optional[List[float]]:
-        # Note: Gemini currently exposes text embedding via the Vertex AI or PaLM APIs
-        # Below is a simulated stub; actual Gemini embeddings endpoint integration will differ.
-        # If you have Google Vertex AI setup, you would use their SDK accordingly.
         print("Gemini's public API for text embeddings is NOT directly available via google-generativeai package as of 2024-06; returning NotImplemented.")
         return None
