@@ -1,52 +1,44 @@
-# Database Schemas
+# Database Schemas (Indeed Bot Project)
 
-This document provides a clean, structured, and stylistically improved version of your database schema documentation for both the **`jobs`** and **`user_profile`** tables.
+This document reflects the **current database schema** for the Indeed Bot system, including the `jobs` and `user_profile` tables as implemented in the latest version of the project (`indeed_jobs.db`). These tables are **auto-migrated** as needed by the code. They are the primary sources for all scraping, AI matching, dashboard stats, profile sync, and document generation tasks.
 
 ---
 
-## 🗂️ Jobs Table Schema
+## 🗂️ Table: `jobs`
 
-Stores all data related to job postings scraped or processed by the system.
+**Purpose:**  
+Stores all job postings scraped or processed by the system, as well as AI analysis and application status metadata.
 
-### **Table: `jobs`**
+| Column               | Type      | Constraints / Default     | Description                                                  |
+| -------------------- | --------- | ------------------------- | ------------------------------------------------------------ |
+| `id`                 | INTEGER   | PRIMARY KEY AUTOINCREMENT | Unique job ID                                                |
+| `job_link`           | TEXT      | UNIQUE NOT NULL           | Canonical URL for the job posting                            |
+| `job_key`            | TEXT      |                           | Indeed job key or source-specific ID                         |
+| `source`             | TEXT      | DEFAULT 'indeed'          | Source of this posting (e.g., `indeed`, `other`)             |
+| `search_query`       | TEXT      |                           | Search keywords/params that produced this job                |
+| `location`           | TEXT      |                           | City/town/region                                             |
+| `country`            | TEXT      |                           | Country code (e.g., `us`, `fr`)                              |
+| `language`           | TEXT      |                           | Site scraping language                                       |
+| `scraped_at`         | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | When first scraped                                           |
+| `created_at`         | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | DB insertion timestamp                                       |
+| `job_summary`        | TEXT      |                           | AI/heuristic short summary (for semantic/keyword matching)   |
+| `job_details`        | TEXT      |                           | Raw job JSON, extended attributes, and scraped description   |
+| `embedding`          | TEXT      |                           | JSON-encoded embedding vector (AI semantic matching, optional)|
+| `match_score`        | REAL      |                           | Relevance/fit score computed by AI matching engine           |
+| `match_reason`       | TEXT      |                           | Explanation or keywords for the match score                  |
+| `application_status` | TEXT      | DEFAULT 'not_applied'     | One of: `not_applied`, `applied`, `interview`, `rejected`, `skipped` |
+| `matched_at`         | TIMESTAMP |                           | When marked as "matched" (by process_jobs)                   |
+| `applied_at`         | TIMESTAMP |                           | When user marked as "applied"                                |
 
-| Column               | Type      | Constraints / Default     | Description                                        |
-| -------------------- | --------- | ------------------------- | -------------------------------------------------- |
-| `id`                 | INTEGER   | PRIMARY KEY AUTOINCREMENT | Unique identifier for each job entry               |
-| `job_link`           | TEXT      | UNIQUE NOT NULL           | Canonical URL of the job posting                   |
-| `job_key`            | TEXT      |                           | Indeed-specific job key                            |
-| `source`             | TEXT      | DEFAULT 'indeed'          | Source of posting (e.g., `indeed`, `aggregator`)   |
-| `search_query`       | TEXT      |                           | Keywords used when searching for this job          |
-| `location`           | TEXT      |                           | City or region of the job posting                  |
-| `country`            | TEXT      |                           | Country code (e.g., `us`, `fr`)                    |
-| `language`           | TEXT      |                           | Language used during scraping                      |
-| `scraped_at`         | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Timestamp when the job was first scraped           |
-| `created_at`         | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Timestamp when record was inserted                 |
-| `job_summary`        | TEXT      |                           | Plaintext summary (used for embeddings + matching) |
-| `job_details`        | TEXT      |                           | Raw or expanded JSON job data                      |
-| `embedding`          | TEXT      |                           | JSON-encoded embedding vector                      |
-| `match_score`        | REAL      |                           | AI/algorithmic relevance score                     |
-| `match_reason`       | TEXT      |                           | Explanation for the match score                    |
-| `application_status` | TEXT      | DEFAULT 'not_applied'     | Application stage/status                           |
-| `matched_at`         | TIMESTAMP |                           | Timestamp when job was AI-matched                  |
-| `applied_at`         | TIMESTAMP |                           | Timestamp when user applied                        |
+### **application_status values**
 
-### **Status Values for `application_status`**
+- `not_applied`: Scraped/saved, not yet applied
+- `applied`: User submitted an application (via bot or manually)
+- `interview`: User invited to interview
+- `rejected`: Marked as rejected by user or via web sync
+- `skipped`: Explicitly skipped/hidden (manual workflow)
 
-| Status        | Description                        |
-| ------------- | ---------------------------------- |
-| `not_applied` | Job saved but user has not applied |
-| `applied`     | User submitted an application      |
-| `interview`   | User advanced to interview stage   |
-| `rejected`    | User was rejected                  |
-| `skipped`     | User intentionally skipped the job |
-
-### **Example Match Metadata**
-
-* `match_score`: `0.85`
-* `match_reason`: `Skills matched; preferred location; strong relevance`
-
-### **SQL — Table Creation**
+### **SQL schema as of 2024**
 
 ```sql
 CREATE TABLE IF NOT EXISTS jobs (
@@ -71,8 +63,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 ```
 
-### **SQL — Indexes**
-
+**Relevant DB Indexes (auto-created):**
 ```sql
 CREATE INDEX IF NOT EXISTS idx_job_link ON jobs(job_link);
 CREATE INDEX IF NOT EXISTS idx_job_key ON jobs(job_key);
@@ -81,31 +72,29 @@ CREATE INDEX IF NOT EXISTS idx_application_status ON jobs(application_status);
 
 ---
 
-## 👤 User Profile Table Schema
+## 👤 Table: `user_profile`
 
-Stores user professional and preference information used for job matching.
+**Purpose:**  
+Stores the single (primary) user profile in use by the bot, mapping to your config and supporting resume & cover letter generation. Sync is from `config.yaml → user_profile` via CLI.
 
-### **Table: `user_profile`**
+| Column                 | Type      | Constraints / Default     | Description                                  |
+| ---------------------- | --------- | ------------------------- | -------------------------------------------- |
+| `id`                   | INTEGER   | PRIMARY KEY AUTOINCREMENT | Always 1 (single-profile model)              |
+| `name`                 | TEXT      |                           | Full name                                    |
+| `location`             | TEXT      |                           | City/region                                  |
+| `professional_summary` | TEXT      |                           | Main summary headline or professional bio    |
+| `work_experience`      | TEXT      | JSON                      | List of work experience objects (JSON)       |
+| `education`            | TEXT      | JSON                      | List of education objects (JSON)             |
+| `technical_skills`     | TEXT      |                           | Comma-separated technology/skill strings     |
+| `soft_skills`          | TEXT      |                           | Comma-separated soft/personal skills         |
+| `certifications`       | TEXT      | JSON                      | List: certifications, awards, licenses (JSON)|
+| `languages`            | TEXT      | JSON                      | List of languages + proficiency (JSON)       |
+| `job_preferences`      | TEXT      | JSON                      | Preferences: roles, locations, salary, etc   |
+| `experience_level`     | TEXT      |                           | e.g., `entry`, `mid`, `senior`               |
+| `created_at`           | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | When created                                 |
+| `updated_at`           | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | When last updated (upon profile sync)        |
 
-| Column                 | Type      | Constraints / Default     | Description                        |
-| ---------------------- | --------- | ------------------------- | ---------------------------------- |
-| `id`                   | INTEGER   | PRIMARY KEY AUTOINCREMENT | Unique identifier                  |
-| `name`                 | TEXT      |                           | User's full name                   |
-| `location`             | TEXT      |                           | User's city or region              |
-| `professional_summary` | TEXT      |                           | Short professional bio             |
-| `work_experience`      | TEXT      | JSON                      | List of experience objects         |
-| `education`            | TEXT      | JSON                      | List of education objects          |
-| `technical_skills`     | TEXT      |                           | Comma-separated technical skills   |
-| `soft_skills`          | TEXT      |                           | Comma-separated soft skills        |
-| `certifications`       | TEXT      | JSON                      | List of certifications             |
-| `languages`            | TEXT      | JSON                      | List of languages + proficiency    |
-| `job_preferences`      | TEXT      | JSON                      | Job preference metadata            |
-| `experience_level`     | TEXT      |                           | e.g., `entry`, `mid`, `senior`     |
-| `created_at`           | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Timestamp when record created      |
-| `updated_at`           | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Timestamp when record last updated |
-
-### **SQL — Table Creation**
-
+### **SQL schema as of 2024**
 ```sql
 CREATE TABLE IF NOT EXISTS user_profile (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,4 +114,12 @@ CREATE TABLE IF NOT EXISTS user_profile (
 );
 ```
 
+- All JSON fields are stored as pretty-printed or minified JSON strings per Python `json.dumps`.
+- Profile fields directly map to DOCX template placeholders (see `docs/templates.md`). They are updatable via config and the `process_jobs.py --sync-profile` command.
+
 ---
+
+**For more schema details, workflow, or troubleshooting, see:**  
+- `docs/PROJECT_OVERVIEW.md` (architecture, workflow, and update policy)
+- `_database.py` (table migration logic)
+- `docs/templates.md` (template/document mapping mechanics)
