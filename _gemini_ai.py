@@ -130,6 +130,19 @@ class GeminiAI_Manager:
             print(f"Error enhancing achievements with Gemini: {e}")
             return None
 
+    def enhance_achievements_with_ai(
+        self,
+        user_achievements: List[str],
+        job_requirements_summary: str,
+        client: Any,
+    ) -> Optional[List[str]]:
+        """
+        Generic alias for enhance_achievements_with_gemini to match OpenAI_Manager interface.
+        """
+        return self.enhance_achievements_with_gemini(
+            user_achievements, job_requirements_summary, client
+        )
+
     def generate_cover_letter_content(
         self,
         user_profile: Dict[str, Any],
