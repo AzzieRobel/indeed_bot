@@ -32,6 +32,7 @@ with open("config.yaml", "r") as f:
 from _database import Database
 from _indeed import Indeed, REQUESTS_AVAILABLE
 from _open_ai import OpenAI_Manager
+from _proxy import ProxyConfig
 import _utils
 
 
@@ -44,6 +45,7 @@ openAI_api_key = os.getenv("OPENAI_API_KEY")
 
 db = Database("indeed_jobs.db")
 indeed = Indeed()
+proxyConfig = ProxyConfig()
 openAI_manager = OpenAI_Manager(openAI_api_key)
 
 
@@ -501,7 +503,15 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 try:
-    with Camoufox(user_data_dir=user_data_dir, persistent_context=True) as browser:
+    with Camoufox(
+        user_data_dir=user_data_dir,
+        persistent_context=True,
+        proxy={
+            "server": "http://ca.proxy-jet.io:1010",
+            "username": "251113n8NQc-resi_region-US_Newyork_Newyork",
+            "password": "Vqo54K6NsgV3cKY",
+        },
+    ) as browser:
         browser_instance = browser
         page = browser.new_page()
 
@@ -683,12 +693,10 @@ try:
                             error_count = 0
 
                             for i, link in enumerate(job_links, 1):
-                                # _utils.click_and_wait()
                                 print(
                                     f"  [{i}/{len(job_links)}] Processing: {link[:60]}..."
                                 )
 
-                                print(openai_client, user_profile)
                                 if openai_client and user_profile:
                                     matched = process_and_save_job_immediately(
                                         link,
