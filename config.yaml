@@ -1,27 +1,18 @@
-# Indeed Auto-Apply Bot Configuration
-# Edit these fields to customize your job search and application process
-
 search:
-  job: "full stack developer"  # Job title or keywords to search for (e.g., "python developer", "software engineer")
-  location: "remote"  # Location where you want to work (city, state, region) - leave empty for any location, or use "remote" for remote jobs
-  country: "us"  # Country code: us (default), fr, uk, de, es, it, nl, pt, pl, ro, tr, ru, cn, etc.
-  language: "us"  # Language code: us (default), fr, uk, de, es, it, nl, pt, pl, ro, tr, ru, cn, etc.
+  job: "full stack developer"
+  location: "remote"
+  country: "us"
+  language: "us"
 
 camoufox:
-  user_data_dir: "user_data_dir"  # Directory to store browser session data
+  user_data_dir: "user_data_dir"
 
-# User Profile for AI Matching (Resume Structure)
 user_profile:
-  # Personal Information
   name: "Anderson Smith"
   email: "andersonsmith@gmail.com"
   location: "New York, USA"
-  
-  # Professional Summary
   professional_summary: |
     Results-driven Full Stack Developer with 6+ years of experience delivering high-performance web and mobile applications across diverse industries. Proficient in React, Node.js, React Native, Flutter, and blockchain technologies, with a proven track record in building scalable, secure, and user-focused solutions for e-commerce, SaaS, and enterprise platforms. Passionate about clean architecture, performance optimization, and intuitive UI/UX design. Recognized for strong collaboration, reliability, and a commitment to quality, speed, and transparency in every project.
-
-  # Key Achievements
   key_achievements:
     - "Successfully optimized API, increasing response time by 40%."
     - "Drove a 25% increase in user retention through improved UI/UX."
@@ -29,8 +20,6 @@ user_profile:
     - "Implemented analytics dashboards that improved decision-making efficiency by 40%."
     - "Reduced front-end load times by 30% with innovative techniques."
     - "Streamlined deployment process, cutting release time by 50% through CI/CD automation."
-  
-  # Work Experience
   work_experience:
     - title: "Full Stack Developer"
       company: ""
@@ -70,28 +59,21 @@ user_profile:
         - Optimized front-end performance, improving load times by 30% with lazy loading and efficient state management.
         - Integrated RESTful APIs and GraphQL for seamless data fetching.
         - Developed reusable component libraries to maintain UI consistency across projects.
-  
-  # Education
   education:
     - degree: "Bachelor of Computer Science"
       institution: "IPB University"
       location: "Bogor, Indonesia"
       duration: "08/2018 - 12/2021"
       year: "2021"
-  
-  # Skills
   technical_skills:
     - "React"
     - "Next.js"
     - "Node.js"
-    - "Laravel"
     - "Java"
-    - "AWS"
     - "Firebase"
     - "Python"
     - "Django"
     - "FastAPI"
-    - "Flutter"
     - "React Native"
     - "Solidity"
     - "Web3.js"
@@ -104,8 +86,6 @@ user_profile:
     - "Nuxt.js"
     - "CI/CD"
     - "Docker"
-    - "JWT"
-    - "OAuth"
   soft_skills:
     - "Communication"
     - "Team Leadership"
@@ -115,18 +95,12 @@ user_profile:
     - "Commitment to quality"
     - "UI/UX Design"
     - "Performance Optimization"
-  
-  # Certifications
   certifications: []
-  
-  # Languages
   languages:
     - language: "English"
       proficiency: "Native"
     - language: "Spanish"
       proficiency: "Native"
-  
-  # Job Preferences
   job_preferences:
     desired_role: "Full Stack Developer"
     preferred_locations:
@@ -137,7 +111,4 @@ user_profile:
       - "contract"
     accept_remote: true
     salary_range: ""
-  
-  # Experience Level
   experience_level: "senior"
-
