@@ -131,23 +131,6 @@ def _build_cover_letter_standard(path: Path) -> None:
 
 TEMPLATES: List[TemplateDefinition] = [
     TemplateDefinition(
-        name="Classic Resume",
-        filename="resume_classic.docx",
-        placeholders={
-            "FULL_NAME": "Candidate full name",
-            "PROFESSIONAL_TITLE": "Target job title",
-            "CONTACT_BLOCK": "Email, phone, location, website",
-            "SUMMARY": "Summary paragraph",
-            "CORE_SKILL_1": "Primary skill",
-            "CORE_SKILL_2": "Primary skill",
-            "CORE_SKILL_3": "Primary skill",
-            "CORE_SKILL_4": "Primary skill",
-            "EXPERIENCE_SECTION": "Experience entries and bullets",
-            "EDUCATION_SECTION": "Education details",
-            "CERTIFICATIONS_SECTION": "Certifications/licenses",
-        },
-    ),
-    TemplateDefinition(
         name="Modern Resume",
         filename="resume_modern.docx",
         placeholders={
