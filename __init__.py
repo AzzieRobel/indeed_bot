@@ -152,7 +152,7 @@ def process_job_for_matching(
         if not job_details:
             return None
 
-        job_summary = _utils.format_job_details_for_summary(job_details)
+        job_summary = openAI_manager.extract_job_summary_with_openai(job_details, openai_client)
         if not job_summary:
             return None
 
@@ -329,10 +329,6 @@ def calculate_match_score(
     user_profile_embedding: Optional[List[float]],
     weights: Optional[Dict[str, float]] = None,
 ) -> Tuple[float, str]:
-    """
-    Calculate overall match score combining embeddings and keyword scoring.
-    Returns (score, reason) tuple.
-    """
     print(f"user profile : ", user_profile)
     print(f"job summary : ", job_summary)
     if weights is None:
@@ -487,7 +483,6 @@ def wait_for_manual_login(page, language, max_wait=300):
         return False
 
 
-browser_instance = None
 shutdown_flag = False
 
 
@@ -510,7 +505,6 @@ try:
             "password": "Vqo54K6NsgV3cKY",
         },
     ) as browser:
-        browser_instance = browser
         page = browser.new_page()
 
         try:
