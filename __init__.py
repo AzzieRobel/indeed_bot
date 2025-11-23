@@ -32,7 +32,6 @@ with open("config.yaml", "r") as f:
 from _database import Database
 from _indeed import Indeed, REQUESTS_AVAILABLE
 from _open_ai import OpenAI_Manager
-from _proxy import ProxyConfig
 import _utils
 
 
@@ -45,7 +44,6 @@ openAI_api_key = os.getenv("OPENAI_API_KEY")
 
 db = Database("indeed_jobs.db")
 indeed = Indeed()
-proxyConfig = ProxyConfig()
 openAI_manager = OpenAI_Manager(openAI_api_key)
 
 
