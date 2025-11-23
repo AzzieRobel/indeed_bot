@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -30,51 +29,13 @@ class ResumeCoverLetterGenerator:
     def analyze_job_description(
         self, job_description: str, openai_client: Any
     ) -> Dict[str, Any]:
-        if not openai_client or not self.openai_manager:
-            return self._extract_keywords_basic(job_description)
-
-        prompt = f"""Analyze the following job description and extract:
-            1. Key technical skills and technologies mentioned (as a comma-separated list)
-            2. Key soft skills mentioned (as a comma-separated list)
-            3. Important keywords and phrases that should appear in a resume (as a comma-separated list)
-            4. Metrics or achievements mentioned (e.g., "increase sales by 20%", "manage team of 10")
-            5. Key responsibilities and requirements (as a brief summary)
-
-            Job Description:
-            {job_description[:4000]}
-
-            Respond in JSON format:
-            {{
-                "technical_skills": ["skill1", "skill2", ...],
-                "soft_skills": ["skill1", "skill2", ...],
-                "keywords": ["keyword1", "keyword2", ...],
-                "achievements": ["achievement1", "achievement2", ...],
-                "requirements_summary": "brief summary of key requirements"
-            }}"""
-
-        try:
-            response = openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a job description analyzer. Extract key information in JSON format.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=800,
-                temperature=0.3,
+        if openai_client and self.openai_manager:
+            result = self.openai_manager.analyze_job_description_for_resume(
+                job_description, openai_client
             )
-            result = response.choices[0].message.content.strip()
-
-            json_match = re.search(r"\{[\s\S]*\}", result)
-            if json_match:
-                return json.loads(json_match.group())
-            else:
-                return self._extract_keywords_basic(job_description)
-        except Exception as e:
-            print(f"Error analyzing job description with OpenAI: {e}")
-            return self._extract_keywords_basic(job_description)
+            if result:
+                return result
+        return self._extract_keywords_basic(job_description)
 
     def _extract_keywords_basic(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
@@ -156,45 +117,17 @@ class ResumeCoverLetterGenerator:
         openai_client: Optional[Any] = None,
     ) -> List[str]:
         enhanced = user_achievements.copy()
-
         job_achievements = job_analysis.get("achievements", [])
         if job_achievements:
             enhanced.extend(job_achievements[:2])
-
         if openai_client and self.openai_manager and user_achievements:
-            try:
-                prompt = f"""Given these user achievements:
-                        {json.dumps(user_achievements, indent=2)}
-
-                        And these job requirements:
-                        {job_analysis.get('requirements_summary', '')}
-
-                        Suggest 2-3 enhanced achievement statements that:
-                        1. Include relevant keywords from the job
-                        2. Use metrics where possible
-                        3. Match the job's focus areas
-
-                        Return as JSON array of strings."""
-
-                response = openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a resume optimizer. Suggest enhanced achievement statements.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    max_tokens=300,
-                    temperature=0.4,
-                )
-                result = response.choices[0].message.content.strip()
-                json_match = re.search(r"\[[\s\S]*\]", result)
-                if json_match:
-                    suggested = json.loads(json_match.group())
-                    enhanced.extend(suggested[:2])
-            except Exception as e:
-                print(f"Error enhancing achievements: {e}")
+            suggested = self.openai_manager.enhance_achievements_with_openai(
+                user_achievements,
+                job_analysis.get("requirements_summary", ""),
+                openai_client,
+            )
+            if suggested:
+                enhanced.extend(suggested)
 
         return enhanced[:6]
 
@@ -417,55 +350,12 @@ class ResumeCoverLetterGenerator:
         doc = Document(str(template_path))
 
         if openai_client and self.openai_manager:
-            try:
-                prompt = f"""Write a professional cover letter for this candidate applying to this job.
-
-                    Candidate Profile:
-                    Name: {user_profile.get('name', '')}
-                    Summary: {user_profile.get('professional_summary', '')[:300]}
-                    Key Skills: {', '.join(user_profile.get('technical_skills', [])[:10])}
-
-                    Job Description:
-                    {job_description[:1500]}
-
-                    Requirements:
-                    {job_analysis.get('requirements_summary', '')}
-
-                    Write:
-                    1. Opening paragraph (2-3 sentences) - why interested
-                    2. Body paragraph 1 (3-4 sentences) - relevant experience and skills
-                    3. Body paragraph 2 (3-4 sentences) - specific achievements and fit
-                    4. Closing paragraph (2-3 sentences) - enthusiasm and call to action
-
-                    Return as JSON:
-                    {{
-                        "opening": "...",
-                        "body1": "...",
-                        "body2": "...",
-                        "closing": "..."
-                    }}"""
-
-                response = openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a professional cover letter writer. Write compelling, ATS-friendly cover letters.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    max_tokens=600,
-                    temperature=0.7,
-                )
-                result = response.choices[0].message.content.strip()
-                json_match = re.search(r"\{[\s\S]*\}", result)
-                if json_match:
-                    ai_content = json.loads(json_match.group())
-                else:
-                    ai_content = None
-            except Exception as e:
-                print(f"Error generating cover letter with AI: {e}")
-                ai_content = None
+            ai_content = self.openai_manager.generate_cover_letter_content(
+                user_profile,
+                job_description,
+                job_analysis.get("requirements_summary", ""),
+                openai_client,
+            )
         else:
             ai_content = None
 
