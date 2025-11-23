@@ -18,3 +18,5 @@ venv/
 venv.bak/
 
 user_data_dir/
+
+output/
