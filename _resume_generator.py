@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+import uuid
+from docx import Document
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-from docx import Document
 
 from _doc_generator import TemplateManager, TEMPLATE_DIR
 
@@ -306,8 +307,9 @@ class ResumeCoverLetterGenerator:
                 paragraph.clear()
                 paragraph.add_run(full_text)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"resume_{timestamp}.docx"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        unique_id = uuid.uuid4().hex[:8]
+        output_filename = f"resume_{timestamp}_{unique_id}.docx"
         output_path = self.output_dir / output_filename
         doc.save(str(output_path))
 
