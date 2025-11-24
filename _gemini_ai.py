@@ -6,9 +6,12 @@ import re
 try:
     import google.generativeai as genai
 except ImportError:
-    raise ImportError("You must install the google-generativeai package: pip install google-generativeai")
+    raise ImportError(
+        "You must install the google-generativeai package: pip install google-generativeai"
+    )
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+
 
 class GeminiAI_Manager:
     def __init__(self, api_key: Optional[str] = None):
@@ -56,7 +59,11 @@ class GeminiAI_Manager:
                 },
             )
             result = getattr(response, "text", None)
-            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
+            if (
+                not result
+                and hasattr(response, "candidates")
+                and hasattr(response.candidates[0].content.parts[0], "text")
+            ):
                 result = response.candidates[0].content.parts[0].text.strip()
             elif result:
                 result = result.strip()
@@ -93,7 +100,9 @@ class GeminiAI_Manager:
                     task_type="retrieval_document",
                 )
                 embedding = resp.get("embedding")
-                if isinstance(embedding, list) and all(isinstance(x, (float, int)) for x in embedding):
+                if isinstance(embedding, list) and all(
+                    isinstance(x, (float, int)) for x in embedding
+                ):
                     return list(map(float, embedding))
                 else:
                     print("Gemini API did not return valid embedding.")
@@ -138,7 +147,11 @@ class GeminiAI_Manager:
                 },
             )
             result = getattr(response, "text", None)
-            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
+            if (
+                not result
+                and hasattr(response, "candidates")
+                and hasattr(response.candidates[0].content.parts[0], "text")
+            ):
                 result = response.candidates[0].content.parts[0].text.strip()
             elif result:
                 result = result.strip()
@@ -185,7 +198,11 @@ class GeminiAI_Manager:
                 },
             )
             result = getattr(response, "text", None)
-            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
+            if (
+                not result
+                and hasattr(response, "candidates")
+                and hasattr(response.candidates[0].content.parts[0], "text")
+            ):
                 result = response.candidates[0].content.parts[0].text.strip()
             elif result:
                 result = result.strip()
@@ -233,7 +250,11 @@ class GeminiAI_Manager:
                 },
             )
             result = getattr(response, "text", None)
-            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
+            if (
+                not result
+                and hasattr(response, "candidates")
+                and hasattr(response.candidates[0].content.parts[0], "text")
+            ):
                 result = response.candidates[0].content.parts[0].text.strip()
             elif result:
                 result = result.strip()
@@ -284,7 +305,11 @@ class GeminiAI_Manager:
                 },
             )
             result = getattr(response, "text", None)
-            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
+            if (
+                not result
+                and hasattr(response, "candidates")
+                and hasattr(response.candidates[0].content.parts[0], "text")
+            ):
                 result = response.candidates[0].content.parts[0].text.strip()
             elif result:
                 result = result.strip()
@@ -301,4 +326,3 @@ class GeminiAI_Manager:
         except Exception as e:
             print(f"Error generating cover letter content with Gemini: {e}")
             return None
-
