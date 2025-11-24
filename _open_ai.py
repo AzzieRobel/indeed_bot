@@ -177,21 +177,57 @@ class OpenAI_Manager:
         job_requirements_summary: str,
         client: Any,
     ) -> Optional[List[str]]:
-        """
-        Generic alias for enhance_achievements_with_openai to match GeminiAI_Manager interface.
-        """
         return self.enhance_achievements_with_openai(
             user_achievements, job_requirements_summary, client
         )
 
+    def generate_resume_content(
+        self,
+        user_profile: dict,
+        job_summary: str,
+        ai_client: Any = None,
+    ) -> str:
+        if not ai_client:
+            raise ValueError("AI client (OpenAI) must be supplied.")
+        prompt = f"""Generate a professional resume for the following candidate.
+            You are an expert resume writer.
+            Use an ATS-optimized, modern template.
+            Return ONLY the resume content as a single string in markdown or plain text.
+            Do not add any explanations.
+
+            Candidate Profile:
+            {json.dumps(user_profile, indent=2)}
+
+            Job Summary:
+            {job_summary}
+            """
+        system_message = (
+            "You are an expert resume writer. "
+            "Generate a concise, ATS-friendly, modern resume based on the information provided."
+        )
+        try:
+            response = ai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=1200,
+                temperature=0.5,
+            )
+            resume = response.choices[0].message.content.strip()
+            return resume
+        except Exception as e:
+            print(f"Error generating resume content with OpenAI: {e}")
+            return ""
+
     def generate_cover_letter_content(
         self,
         user_profile: Dict[str, Any],
-        job_description: str,
-        job_requirements_summary: str,
-        client: Any,
+        job_summary: str,
+        ai_client: Any = None,
     ) -> Optional[Dict[str, str]]:
-        if not client:
+        if not ai_client:
             return None
         try:
             prompt = f"""Write a professional cover letter for this candidate applying to this job.
@@ -201,11 +237,8 @@ class OpenAI_Manager:
                 Summary: {user_profile.get('professional_summary', '')[:300]}
                 Key Skills: {', '.join(user_profile.get('technical_skills', [])[:10])}
 
-                Job Description:
-                {job_description[:1500]}
-
-                Requirements:
-                {job_requirements_summary}
+                Job Summary:
+                {job_summary}
 
                 Write:
                 1. Opening paragraph (2-3 sentences) - why interested
@@ -220,7 +253,7 @@ class OpenAI_Manager:
                     "body2": "...",
                     "closing": "..."
                 }}"""
-            response = client.chat.completions.create(
+            response = ai_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {

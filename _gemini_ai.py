@@ -9,21 +9,22 @@ except ImportError:
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
-
 class GeminiAI_Manager:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
-        self._client = None
+        self._model = None
 
     def get_gemini_client(self) -> Optional[Any]:
+        if self._model is not None:
+            return self._model
         if not self.api_key:
             return None
         try:
             genai.configure(api_key=self.api_key)
-            self._client = genai.Client()
-            return self._client
+            self._model = genai.GenerativeModel(DEFAULT_GEMINI_MODEL)
+            return self._model
         except Exception as e:
-            print(f"Error initializing Gemini client: {e}")
+            print(f"Error initializing Gemini client/model: {e}")
             return None
 
     def extract_job_summary_with_gemini(
@@ -46,24 +47,44 @@ class GeminiAI_Manager:
             f"Job posting details:\n{str(job_detail)[:6000]}"
         )
         try:
-            response = client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL,
-                contents=prompt,
+            response = client.generate_content(
+                prompt,
                 generation_config={
                     "temperature": 0.3,
-                    "max_output_tokens": 800,
+                    "max_output_tokens": 500,
                 },
             )
-            summary = getattr(response, "text", None)
-            if not summary:
-                # Fallback for other Gemini API output
-                summary = response.candidates[0].content.parts[0].text.strip()
+            result = getattr(response, "text", None)
+            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
+                result = response.candidates[0].content.parts[0].text.strip()
+            elif result:
+                result = result.strip()
             else:
-                summary = summary.strip()
-            return summary
+                result = ""
+            return result
         except Exception as e:
             print(f"Error extracting job summary with Gemini: {e}")
             return None
+
+    def get_embedding(
+        self,
+        text: str,
+        client: Any,
+        model: str = "models/embedding-001",
+        max_length: int = 8000,
+        retries: int = 2,
+    ) -> Optional[List[float]]:
+        if not client:
+            print("Error: Gemini client missing in get_embedding()")
+            return None
+        if not text or not isinstance(text, str):
+            print("Error: Invalid or empty text passed to get_embedding()")
+            return None
+        clean_text = text.strip()
+        if len(clean_text) > max_length:
+            clean_text = clean_text[:max_length]
+        print("Gemini embedding API is not available via google-generativeai; returning None.")
+        return None
 
     def analyze_job_description_for_resume(
         self, job_description: str, client: Any
@@ -89,24 +110,28 @@ class GeminiAI_Manager:
                     "requirements_summary": "brief summary of key requirements"
                 }}"""
         try:
-            response = client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL,
-                contents=prompt,
+            response = client.generate_content(
+                prompt,
                 generation_config={
                     "temperature": 0.3,
-                    "max_output_tokens": 900,
+                    "max_output_tokens": 800,
                 },
             )
             result = getattr(response, "text", None)
-            if not result:
+            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
                 result = response.candidates[0].content.parts[0].text.strip()
-            else:
+            elif result:
                 result = result.strip()
+            else:
+                result = ""
             json_match = re.search(r"\{[\s\S]*\}", result)
             if json_match:
-                return json.loads(json_match.group())
-            else:
-                return None
+                try:
+                    return json.loads(json_match.group())
+                except Exception as e:
+                    print(f"Error decoding JSON from Gemini response: {e}")
+                    return None
+            return None
         except Exception as e:
             print(f"Error analyzing job description with Gemini: {e}")
             return None
@@ -132,23 +157,28 @@ class GeminiAI_Manager:
                 3. Match the job's focus areas
 
                 Return as JSON array of strings."""
-            response = client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL,
-                contents=prompt,
+            response = client.generate_content(
+                prompt,
                 generation_config={
                     "temperature": 0.4,
-                    "max_output_tokens": 400,
+                    "max_output_tokens": 300,
                 },
             )
             result = getattr(response, "text", None)
-            if not result:
+            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
                 result = response.candidates[0].content.parts[0].text.strip()
-            else:
+            elif result:
                 result = result.strip()
+            else:
+                result = ""
             json_match = re.search(r"\[[\s\S]*\]", result)
             if json_match:
-                suggested = json.loads(json_match.group())
-                return suggested[:2]
+                try:
+                    suggested = json.loads(json_match.group())
+                    return suggested[:2]
+                except Exception as e:
+                    print(f"Error decoding Gemini achievements JSON: {e}")
+                    return None
             return None
         except Exception as e:
             print(f"Error enhancing achievements with Gemini: {e}")
@@ -160,77 +190,105 @@ class GeminiAI_Manager:
         job_requirements_summary: str,
         client: Any,
     ) -> Optional[List[str]]:
-        """
-        Generic alias for enhance_achievements_with_gemini to match OpenAI_Manager interface.
-        """
         return self.enhance_achievements_with_gemini(
             user_achievements, job_requirements_summary, client
         )
 
-    def generate_cover_letter_content(
+    def generate_resume_content(
         self,
-        user_profile: Dict[str, Any],
-        job_description: str,
-        job_requirements_summary: str,
-        client: Any,
-    ) -> Optional[Dict[str, str]]:
+        user_profile: dict,
+        job_summary: str,
+        client: Any = None,
+    ) -> str:
         if not client:
-            return None
+            raise ValueError("AI client (Gemini) must be supplied.")
+        prompt = f"""Generate a professional resume for the following candidate.
+            You are an expert resume writer.
+            Use an ATS-optimized, modern template.
+            Return ONLY the resume content as a single string in markdown or plain text.
+            Do not add any explanations.
+
+            Candidate Profile:
+            {json.dumps(user_profile, indent=2)}
+
+            Job Summary:
+            {job_summary}
+            """
         try:
-            prompt = f"""Write a professional cover letter for this candidate applying to this job.
-
-                Candidate Profile:
-                Name: {user_profile.get('name', '')}
-                Summary: {user_profile.get('professional_summary', '')[:300]}
-                Key Skills: {', '.join(user_profile.get('technical_skills', [])[:10])}
-
-                Job Description:
-                {job_description[:1500]}
-
-                Requirements:
-                {job_requirements_summary}
-
-                Write:
-                1. Opening paragraph (2-3 sentences) - why interested
-                2. Body paragraph 1 (3-4 sentences) - relevant experience and skills
-                3. Body paragraph 2 (3-4 sentences) - specific achievements and fit
-                4. Closing paragraph (2-3 sentences) - enthusiasm and call to action
-
-                Return as JSON:
-                {{
-                    "opening": "...",
-                    "body1": "...",
-                    "body2": "...",
-                    "closing": "..."
-                }}"""
-            response = client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL,
-                contents=prompt,
+            response = client.generate_content(
+                prompt,
                 generation_config={
-                    "temperature": 0.7,
-                    "max_output_tokens": 700,
+                    "temperature": 0.5,
+                    "max_output_tokens": 1200,
                 },
             )
             result = getattr(response, "text", None)
-            if not result:
+            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
                 result = response.candidates[0].content.parts[0].text.strip()
-            else:
+            elif result:
                 result = result.strip()
+            else:
+                result = ""
+            return result
+        except Exception as e:
+            print(f"Error generating resume content with Gemini: {e}")
+            return ""
+
+    def generate_cover_letter_content(
+        self,
+        user_profile: Dict[str, Any],
+        job_summary: str,
+        client: Any = None,
+    ) -> Optional[Dict[str, str]]:
+        if not client:
+            return None
+        prompt = f"""Write a professional cover letter for this candidate applying to this job.
+
+            Candidate Profile:
+            Name: {user_profile.get('name', '')}
+            Summary: {user_profile.get('professional_summary', '')[:300]}
+            Key Skills: {', '.join(user_profile.get('technical_skills', [])[:10])}
+
+            Job Summary:
+            {job_summary}
+
+            Write:
+            1. Opening paragraph (2-3 sentences) - why interested
+            2. Body paragraph 1 (3-4 sentences) - relevant experience and skills
+            3. Body paragraph 2 (3-4 sentences) - specific achievements and fit
+            4. Closing paragraph (2-3 sentences) - enthusiasm and call to action
+
+            Return as JSON:
+            {{
+                "opening": "...",
+                "body1": "...",
+                "body2": "...",
+                "closing": "..."
+            }}"""
+        try:
+            response = client.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.7,
+                    "max_output_tokens": 600,
+                },
+            )
+            result = getattr(response, "text", None)
+            if not result and hasattr(response, "candidates") and hasattr(response.candidates[0].content.parts[0], "text"):
+                result = response.candidates[0].content.parts[0].text.strip()
+            elif result:
+                result = result.strip()
+            else:
+                result = ""
             json_match = re.search(r"\{[\s\S]*\}", result)
             if json_match:
-                return json.loads(json_match.group())
+                try:
+                    return json.loads(json_match.group())
+                except Exception as e:
+                    print(f"Error decoding Gemini cover letter JSON: {e}")
+                    return None
             return None
         except Exception as e:
             print(f"Error generating cover letter content with Gemini: {e}")
             return None
 
-    def get_embedding(
-        self,
-        text: str,
-        client: Any,
-        model: str = "models/embedding-001",
-        max_length: int = 8000,
-        retries: int = 2,
-    ) -> Optional[List[float]]:
-        print("Gemini's public API for text embeddings is NOT directly available via google-generativeai package as of 2024-06; returning NotImplemented.")
-        return None
