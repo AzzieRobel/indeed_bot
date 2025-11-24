@@ -7,9 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-
 from _doc_generator import TemplateManager, TEMPLATE_DIR
-
 
 class ResumeCoverLetterGenerator:
     def __init__(
@@ -116,7 +114,6 @@ class ResumeCoverLetterGenerator:
         if job_achievements:
             enhanced.extend(job_achievements[:2])
         if ai_client and self.ai_provider and candidate_achievements:
-            # Changed function name to reference generic AI usage, not openai-specific
             suggested = self.ai_provider.enhance_achievements_with_ai(
                 candidate_achievements,
                 job_analysis.get("requirements_summary", ""),
@@ -204,209 +201,31 @@ class ResumeCoverLetterGenerator:
 
     def generate_resume(
         self,
-        candidate_profile: Dict[str, Any],
-        job_description: Optional[str] = None,
-        job_analysis: Optional[Dict[str, Any]] = None,
-        template_name: str = "resume_modern.docx",
+        user_profile: Dict[str, Any],
+        job_summary: Optional[str] = None,
         ai_client: Optional[Any] = None,
-    ) -> Path:
-        self.template_manager.ensure_template_pack()
-
-        if job_description and not job_analysis and ai_client:
-            job_analysis = self.analyze_job_description(job_description, ai_client)
-        elif not job_analysis:
-            job_analysis = {
-                "technical_skills": [],
-                "soft_skills": [],
-                "keywords": [],
-                "achievements": [],
-                "requirements_summary": "",
-            }
-
-        template_path = self.template_manager.template_dir / template_name
-        if not template_path.exists():
-            raise FileNotFoundError(f"Template not found: {template_path}")
-
-        doc = Document(str(template_path))
-
-        job_keywords = job_analysis.get("keywords", [])
-        job_tech_skills = job_analysis.get("technical_skills", [])
-
-        full_name = candidate_profile.get("name", "${FULL_NAME}")
-        professional_title = candidate_profile.get("job_preferences", {}).get(
-            "desired_role", ""
+    ) -> str:
+        if not self.ai_provider or not ai_client:
+            raise ValueError("AI provider and client must be supplied.")
+        return self.ai_provider.generate_resume_content(
+            user_profile,
+            job_summary,
+            ai_client,
         )
-        email = candidate_profile.get("email", "")
-        location = candidate_profile.get("location", "")
-        phone = candidate_profile.get("phone", "")
-
-        contact_parts = []
-        if email:
-            contact_parts.append(email)
-        if phone:
-            contact_parts.append(phone)
-        if location:
-            contact_parts.append(location)
-        contact_block = (
-            " | ".join(contact_parts) if contact_parts else "${CONTACT_BLOCK}"
-        )
-
-        candidate_tech_skills = candidate_profile.get("technical_skills", [])
-        enhanced_tech_skills = self.merge_skills_with_job(
-            candidate_tech_skills, job_tech_skills
-        )
-
-        candidate_achievements = candidate_profile.get("key_achievements", [])
-        enhanced_achievements = self.enhance_achievements(
-            candidate_achievements, job_analysis, ai_client
-        )
-
-        experience_section = self.format_experience_section(
-            candidate_profile.get("work_experience", []), job_keywords
-        )
-        education_section = self.format_education_section(
-            candidate_profile.get("education", [])
-        )
-        certifications_section = self.format_certifications_section(
-            candidate_profile.get("certifications", [])
-        )
-
-        replacements = {
-            "${FULL_NAME}": full_name,
-            "${PROFESSIONAL_TITLE}": professional_title,
-            "${CONTACT_BLOCK}": contact_block,
-            "${TAGLINE}": professional_title or "Professional",
-            "${SUMMARY}": candidate_profile.get("professional_summary", ""),
-            "${PROFESSIONAL_PROFILE}": candidate_profile.get("professional_summary", ""),
-            "${CORE_SKILL_1}": (
-                enhanced_tech_skills[0] if len(enhanced_tech_skills) > 0 else ""
-            ),
-            "${CORE_SKILL_2}": (
-                enhanced_tech_skills[1] if len(enhanced_tech_skills) > 1 else ""
-            ),
-            "${CORE_SKILL_3}": (
-                enhanced_tech_skills[2] if len(enhanced_tech_skills) > 2 else ""
-            ),
-            "${CORE_SKILL_4}": (
-                enhanced_tech_skills[3] if len(enhanced_tech_skills) > 3 else ""
-            ),
-            "${TECH_STACK}": ", ".join(enhanced_tech_skills[:12]),
-            "${SOFT_SKILLS}": ", ".join(candidate_profile.get("soft_skills", [])[:10]),
-            "${EXPERIENCE_SECTION}": experience_section,
-            "${EDUCATION_SECTION}": education_section,
-            "${CERTIFICATIONS_SECTION}": certifications_section,
-            "${PROJECTS_SECTION}": "\n".join(enhanced_achievements[:4]),
-        }
-
-        for paragraph in doc.paragraphs:
-            full_text = paragraph.text
-            for placeholder, value in replacements.items():
-                if placeholder in full_text:
-                    full_text = full_text.replace(placeholder, value)
-            if full_text != paragraph.text:
-                paragraph.clear()
-                paragraph.add_run(full_text)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        unique_id = uuid.uuid4().hex[:8]
-        output_filename = f"resume_{timestamp}_{unique_id}.docx"
-        output_path = self.output_dir / output_filename
-        doc.save(str(output_path))
-
-        return output_path
 
     def generate_cover_letter(
         self,
-        candidate_profile: Dict[str, Any],
-        job_description: str,
-        company_name: Optional[str] = None,
-        company_address: Optional[str] = None,
-        hiring_manager: Optional[str] = None,
-        job_analysis: Optional[Dict[str, Any]] = None,
+        user_profile: Dict[str, Any],
+        job_summary: str,
         ai_client: Optional[Any] = None,
-    ) -> Path:
-        self.template_manager.ensure_template_pack()
-
-        if not job_analysis and ai_client:
-            job_analysis = self.analyze_job_description(job_description, ai_client)
-        elif not job_analysis:
-            job_analysis = {
-                "technical_skills": [],
-                "soft_skills": [],
-                "keywords": [],
-                "requirements_summary": job_description[:200],
-            }
-
-        template_path = (
-            self.template_manager.template_dir / "cover_letter_standard.docx"
+    ) -> Optional[Dict[str, str]]:
+        if not self.ai_provider or not ai_client:
+            raise ValueError("AI provider and client must be supplied.")
+        return self.ai_provider.generate_cover_letter_content(
+            user_profile,
+            job_summary,
+            ai_client,
         )
-        if not template_path.exists():
-            raise FileNotFoundError(f"Template not found: {template_path}")
-
-        doc = Document(str(template_path))
-
-        if ai_client and self.ai_provider:
-            ai_content = self.ai_provider.generate_cover_letter_content(
-                candidate_profile,
-                job_description,
-                job_analysis.get("requirements_summary", ""),
-                ai_client,
-            )
-        else:
-            ai_content = None
-
-        current_date = datetime.now().strftime("%B %d, %Y")
-        full_name = candidate_profile.get("name", "${FULL_NAME}")
-
-        opening = (
-            ai_content.get("opening", "")
-            if ai_content
-            else f"I am writing to express my interest in the position. With my background in {', '.join(candidate_profile.get('technical_skills', [])[:3])}, I am excited about this opportunity."
-        )
-        body1 = (
-            ai_content.get("body1", "")
-            if ai_content
-            else f"My experience includes {candidate_profile.get('professional_summary', '')[:200]}."
-        )
-        body2 = (
-            ai_content.get("body2", "")
-            if ai_content
-            else f"I have successfully {candidate_profile.get('key_achievements', ['delivered results'])[0] if candidate_profile.get('key_achievements') else 'achieved results'}."
-        )
-        closing = (
-            ai_content.get("closing", "")
-            if ai_content
-            else "I am excited about the opportunity to contribute to your team and would welcome the chance to discuss how my skills align with your needs."
-        )
-
-        replacements = {
-            "${DATE}": current_date,
-            "${HIRING_MANAGER}": hiring_manager or "Hiring Manager",
-            "${COMPANY_NAME}": company_name or "Company Name",
-            "${COMPANY_ADDRESS}": company_address or "",
-            "${OPENING_PARAGRAPH}": opening,
-            "${BODY_PARAGRAPH_1}": body1,
-            "${BODY_PARAGRAPH_2}": body2,
-            "${CLOSING_PARAGRAPH}": closing,
-            "${SIGN_OFF}": "Sincerely,",
-            "${FULL_NAME}": full_name,
-        }
-
-        for paragraph in doc.paragraphs:
-            full_text = paragraph.text
-            for placeholder, value in replacements.items():
-                if placeholder in full_text:
-                    full_text = full_text.replace(placeholder, value)
-            if full_text != paragraph.text:
-                paragraph.clear()
-                paragraph.add_run(full_text)
-
-        unique_id = uuid.uuid4().hex[:8]
-        base_name = f"cover_letter_{full_name.replace(' ', '_')}_{unique_id}.docx"
-        output_path = self.output_dir / base_name
-        doc.save(str(output_path))
-
-        return output_path
 
     def export_to_pdf(self, docx_path: Path) -> Path:
         try:
@@ -471,21 +290,15 @@ class ResumeCoverLetterGenerator:
     ) -> Dict[str, Path]:
         results = {}
 
-        resume_docx = self.generate_resume(
+        resume_result = self.generate_resume(
             candidate_profile,
             job_description,
             template_name=template_name,
             ai_client=ai_client,
         )
-        results["resume_docx"] = resume_docx
+        results["resume"] = resume_result
 
-        if export_pdf:
-            try:
-                results["resume_pdf"] = self.export_to_pdf(resume_docx)
-            except Exception as e:
-                print(f"Could not export resume to PDF: {e}")
-
-        cover_letter_docx = self.generate_cover_letter(
+        cover_letter_result = self.generate_cover_letter(
             candidate_profile,
             job_description,
             company_name=company_name,
@@ -493,12 +306,6 @@ class ResumeCoverLetterGenerator:
             hiring_manager=hiring_manager,
             ai_client=ai_client,
         )
-        results["cover_letter_docx"] = cover_letter_docx
-
-        if export_pdf:
-            try:
-                results["cover_letter_pdf"] = self.export_to_pdf(cover_letter_docx)
-            except Exception as e:
-                print(f"Could not export cover letter to PDF: {e}")
+        results["cover_letter"] = cover_letter_result
 
         return results
