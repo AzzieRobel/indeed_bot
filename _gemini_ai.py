@@ -1,5 +1,6 @@
 from typing import Any, Optional, List, Dict
 import json
+import time
 import re
 
 try:
@@ -74,16 +75,35 @@ class GeminiAI_Manager:
         max_length: int = 8000,
         retries: int = 2,
     ) -> Optional[List[float]]:
-        if not client:
-            print("Error: Gemini client missing in get_embedding()")
-            return None
+
         if not text or not isinstance(text, str):
             print("Error: Invalid or empty text passed to get_embedding()")
             return None
         clean_text = text.strip()
         if len(clean_text) > max_length:
             clean_text = clean_text[:max_length]
-        print("Gemini embedding API is not available via google-generativeai; returning None.")
+
+        attempt = 0
+        last_err = None
+        while attempt < retries:
+            try:
+                resp = genai.embed_content(
+                    model=model,
+                    content=clean_text,
+                    task_type="retrieval_document",
+                )
+                embedding = resp.get("embedding")
+                if isinstance(embedding, list) and all(isinstance(x, (float, int)) for x in embedding):
+                    return list(map(float, embedding))
+                else:
+                    print("Gemini API did not return valid embedding.")
+                    return None
+            except Exception as e:
+                last_err = e
+                if attempt < retries - 1:
+                    time.sleep(0.8 * (attempt + 1))
+            attempt += 1
+        print(f"Error obtaining Gemini embedding after {retries} attempts: {last_err}")
         return None
 
     def analyze_job_description_for_resume(
@@ -136,7 +156,7 @@ class GeminiAI_Manager:
             print(f"Error analyzing job description with Gemini: {e}")
             return None
 
-    def enhance_achievements_with_gemini(
+    def enhance_achievements_with_ai(
         self,
         user_achievements: List[str],
         job_requirements_summary: str,
@@ -183,16 +203,6 @@ class GeminiAI_Manager:
         except Exception as e:
             print(f"Error enhancing achievements with Gemini: {e}")
             return None
-
-    def enhance_achievements_with_ai(
-        self,
-        user_achievements: List[str],
-        job_requirements_summary: str,
-        client: Any,
-    ) -> Optional[List[str]]:
-        return self.enhance_achievements_with_gemini(
-            user_achievements, job_requirements_summary, client
-        )
 
     def generate_resume_content(
         self,

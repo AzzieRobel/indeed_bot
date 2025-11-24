@@ -128,7 +128,7 @@ class OpenAI_Manager:
             print(f"Error analyzing job description with OpenAI: {e}")
             return None
 
-    def enhance_achievements_with_openai(
+    def enhance_achievements_with_ai(
         self,
         user_achievements: List[str],
         job_requirements_summary: str,
@@ -170,16 +170,6 @@ class OpenAI_Manager:
         except Exception as e:
             print(f"Error enhancing achievements with OpenAI: {e}")
             return None
-
-    def enhance_achievements_with_ai(
-        self,
-        user_achievements: List[str],
-        job_requirements_summary: str,
-        client: Any,
-    ) -> Optional[List[str]]:
-        return self.enhance_achievements_with_openai(
-            user_achievements, job_requirements_summary, client
-        )
 
     def generate_resume_content(
         self,
